@@ -2,7 +2,7 @@
 
 Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.
 
-Contract: axes 5 · surface 31 · extension points 4 · operations 17 · error codes 62.
+Contract: axes 5 · surface 31 · extension points 4 · operations 17 · error codes 63.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -157,7 +157,7 @@ Paths are relative to `/forms/api/v1/`.
 - POST /submissions/{submission_id}/resend — forms_api_v1_submissions_resend_create
 - GET /submissions/{submission_id} — forms_api_v1_submissions_retrieve
 
-## Error codes (62) — the StapelError envelope
+## Error codes (63) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -221,3 +221,4 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.429.too_many_requests [429] wait_and_retry
 - error.500.internal [500] contact_support
 - error.503.forms_workspaces_unavailable [503] wait_and_retry
+- error.503.mandate_unavailable [503] retry

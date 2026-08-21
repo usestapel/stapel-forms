@@ -526,5 +526,13 @@
     "remediation": "wait_and_retry",
     "en": "Workspace membership service is unavailable",
     "owner": "stapel_forms"
+  },
+  {
+    "code": "error.503.mandate_unavailable",
+    "status": 503,
+    "params": [],
+    "remediation": "retry",
+    "en": "Cannot verify workspace mandate right now",
+    "owner": "stapel_core"
   }
 ]

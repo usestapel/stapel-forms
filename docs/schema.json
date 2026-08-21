@@ -1236,12 +1236,20 @@
       },
       "Resend": {
         "type": "object",
+        "description": "Optional destination override for a resend.\n\nGiven either list, the form's own configured targets are replaced, not\nsupplemented: \"send this one to legal\" must not also re-send it to\neveryone who already has it.",
         "properties": {
           "recipients": {
             "type": "array",
             "items": {
               "type": "string",
               "format": "email"
+            }
+          },
+          "telegram_chat_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64
             }
           }
         }
