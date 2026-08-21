@@ -178,7 +178,7 @@ def test_resend_is_admin_initiated_and_ignores_the_cooldown(
 
     resends = [s for s in sent if s[0] == "forms.submission_resend"]
     assert len(resends) == 2  # the cooldown never applies to an operator act
-    assert resends[0][1] == ("sales@example.com",)
+    assert resends[0][1] == (("email", "sales@example.com"),)
     assert resends[0][2]["answers"]["full_name"] == "Ann"
 
 
@@ -196,7 +196,7 @@ def test_resend_accepts_a_destination_override(authed, workspace_id, published_f
     )
     assert resp.json() == {"sent": 2}
     assert [r for t, r in sent if t == "forms.submission_resend"] == [
-        ("ops@example.com", "legal@example.com")
+        (("email", "ops@example.com"), ("email", "legal@example.com"))
     ]
 
 
@@ -220,3 +220,23 @@ def test_error_keys_endpoint_is_mounted(api_client, user):
     resp = api_client.get(f"{BASE}/error-keys/")
     assert resp.status_code == 200
     assert "error.404.forms_not_found" in resp.json()
+
+
+def test_resend_can_override_to_a_telegram_chat(authed, workspace_id, published_form, monkeypatch):
+    from stapel_forms import notifications, services
+
+    sent = []
+    monkeypatch.setattr(notifications, "_request", lambda t, r, v: sent.append((t, tuple(r))))
+    services.submit(published_form, answers={"full_name": "Ann", "plan": "pro"})
+    row = Submission.objects.get()
+    resp = authed.post(
+        f"{BASE}/submissions/{row.id}/resend?workspace_id={workspace_id}",
+        {"telegram_chat_ids": ["-1001234567890"]},
+        format="json",
+    )
+    assert resp.json() == {"sent": 1}
+    # An override REPLACES the form's targets — the configured mailbox does
+    # not also get a second copy.
+    assert [r for t, r in sent if t == "forms.submission_resend"] == [
+        (("telegram_chat_id", "-1001234567890"),)
+    ]

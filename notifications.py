@@ -1,12 +1,12 @@
 """Outbound notification for stapel-forms — one reaction, two triggers.
 
-The module hardwires exactly one reaction to a submission (email to the
-form's configured recipients) and no template engine, no SMTP, no channel
-of its own: everything goes through
+The module hardwires exactly one reaction to a submission (tell the form's
+configured destinations) and owns no template engine, no SMTP, no bot and
+no channel: everything goes through
 ``stapel_core.notifications.publish.request_notification``, which accepts a
-bare ``email=`` address — exactly what "notify the form's admin address"
-needs. When ``stapel-webhooks`` eventually lands it subscribes to
-``form.submission.received`` and nothing here has to move.
+bare address — exactly what "notify the form's admin address" needs, with
+no account behind it. When ``stapel-webhooks`` eventually lands it
+subscribes to ``form.submission.received`` and nothing here has to move.
 
 The two triggers are deliberately shaped differently:
 
@@ -19,9 +19,13 @@ The two triggers are deliberately shaped differently:
   therefore NOT cooldown-gated (spec §11a) — a cooldown that blocks an
   admin from re-sending a response they are looking at protects nobody.
 
-Channels are whatever the routing entry says. Once the telegram channel
-lands in stapel-notifications, ``Form.settings.notify_channels`` becomes
-meaningful here for free — forms addresses channels only through routing.
+A **target** is a destination plus the keyword that names it to
+``request_notification``: ``notify_emails`` become ``email=`` and
+``notify_telegram_chat_ids`` become ``telegram_chat_id=`` (stapel-core
+0.31, alongside the telegram channel in stapel-notifications 0.13). Forms
+never learns a transport — it names a destination and the routing entry
+decides the rest, which is why adding a channel here was a keyword and not
+a delivery path.
 """
 from __future__ import annotations
 
@@ -30,6 +34,13 @@ import logging
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
+
+#: Form.settings key -> the request_notification keyword that addresses it.
+#: Adding a channel is an entry here, never a branch at a call site.
+TARGET_KINDS = {
+    "notify_emails": "email",
+    "notify_telegram_chat_ids": "telegram_chat_id",
+}
 
 #: Notification types this module requests. Registered upstream in
 #: ``stapel_notifications.routing.NOTIFICATION_ROUTING``; until that
@@ -42,12 +53,12 @@ TYPE_SUBMISSION_RESEND = "forms.submission_resend"
 #: to bridge them can copy the exact shape rather than guess it.
 ROUTING_ENTRIES = {
     TYPE_SUBMISSION_RECEIVED: {
-        "channels": ["email"],
+        "channels": ["email", "telegram"],
         "group": "system",
         "transactional": True,
     },
     TYPE_SUBMISSION_RESEND: {
-        "channels": ["email"],
+        "channels": ["email", "telegram"],
         "group": "system",
         "transactional": True,
     },
@@ -57,9 +68,15 @@ _COOLDOWN_KEY = "stapel_forms:notify:{form_id}"
 _PENDING_KEY = "stapel_forms:notify_pending:{form_id}"
 
 
-def notify_recipients(form) -> list:
-    emails = (form.settings or {}).get("notify_emails") or []
-    return [e for e in emails if isinstance(e, str) and e.strip()]
+def notify_targets(form) -> list:
+    """``[(keyword, address)]`` for every destination this form configured."""
+    settings = form.settings or {}
+    targets = []
+    for key, keyword in TARGET_KINDS.items():
+        for address in settings.get(key) or []:
+            if isinstance(address, str) and address.strip():
+                targets.append((keyword, address.strip()))
+    return targets
 
 
 def notify_submission_received(form) -> bool:
@@ -71,8 +88,8 @@ def notify_submission_received(form) -> bool:
     """
     from .conf import forms_settings
 
-    recipients = notify_recipients(form)
-    if not recipients:
+    targets = notify_targets(form)
+    if not targets:
         return False
 
     cooldown = int(forms_settings.NOTIFY_COOLDOWN_SECONDS or 0)
@@ -96,7 +113,7 @@ def notify_submission_received(form) -> bool:
 
     _request(
         TYPE_SUBMISSION_RECEIVED,
-        recipients,
+        targets,
         {
             "form_id": str(form.id),
             "form_title": form.title,
@@ -106,7 +123,7 @@ def notify_submission_received(form) -> bool:
     return True
 
 
-def notify_resend(form, submission, recipients) -> int:
+def notify_resend(form, submission, targets) -> int:
     """Re-deliver one submission's answers. No cooldown — admin-initiated.
 
     Answers travel in the notification variables, not on the event bus:
@@ -122,20 +139,25 @@ def notify_resend(form, submission, recipients) -> int:
         "submitted_at": submission.submitted_at.isoformat(),
         "answers": present_answers(submission),
     }
-    _request(TYPE_SUBMISSION_RESEND, recipients, variables)
-    return len(recipients)
+    _request(TYPE_SUBMISSION_RESEND, targets, variables)
+    return len(targets)
 
 
-def _request(notification_type: str, recipients, variables: dict) -> None:
+def _request(notification_type: str, targets, variables: dict) -> None:
+    """One request per destination, addressed by its own keyword.
+
+    Failures are logged, never raised: the row is already committed, and a
+    notification service being down is not a reason to lose a response.
+    """
     from stapel_core.notifications.publish import request_notification
 
-    for email in recipients:
+    for keyword, address in targets:
         try:
             request_notification(
                 notification_type,
-                email=email,
                 variables=variables,
                 source_service="forms",
+                **{keyword: address},
             )
         except Exception:  # noqa: BLE001 - delivery is best-effort, the row is committed
             logger.exception(
@@ -149,7 +171,8 @@ __all__ = [
     "TYPE_SUBMISSION_RECEIVED",
     "TYPE_SUBMISSION_RESEND",
     "ROUTING_ENTRIES",
-    "notify_recipients",
+    "TARGET_KINDS",
+    "notify_targets",
     "notify_submission_received",
     "notify_resend",
 ]

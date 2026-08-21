@@ -25,7 +25,7 @@ def test_the_first_submission_notifies(published_form, sent):
     from stapel_forms import notifications
 
     assert notifications.notify_submission_received(published_form) is True
-    assert sent[0][1] == ("sales@example.com",)
+    assert sent[0][1] == (("email", "sales@example.com"),)
     assert sent[0][2]["new_count"] == 1
 
 
@@ -99,6 +99,49 @@ def test_the_routing_entries_are_quoted_for_the_host_bridge():
 
     assert set(ROUTING_ENTRIES) == {TYPE_SUBMISSION_RECEIVED, TYPE_SUBMISSION_RESEND}
     for entry in ROUTING_ENTRIES.values():
-        assert entry["channels"] == ["email"]
+        assert entry["channels"] == ["email", "telegram"]
         assert entry["group"] == "system"
         assert entry["transactional"] is True
+
+
+def test_a_telegram_target_is_addressed_by_its_own_keyword(published_form, sent):
+    from stapel_forms import notifications, services
+
+    services.update_form(
+        published_form,
+        settings={"notify_emails": ["sales@example.com"],
+                  "notify_telegram_chat_ids": ["-1001234567890"]},
+    )
+    notifications.notify_submission_received(published_form)
+    assert sent[0][1] == (
+        ("email", "sales@example.com"),
+        ("telegram_chat_id", "-1001234567890"),
+    )
+
+
+def test_a_telegram_only_form_still_notifies(published_form, sent):
+    from stapel_forms import notifications, services
+
+    services.update_form(
+        published_form, settings={"notify_telegram_chat_ids": ["-100999"]}
+    )
+    assert notifications.notify_submission_received(published_form) is True
+    assert sent[0][1] == (("telegram_chat_id", "-100999"),)
+
+
+def test_the_keyword_reaches_request_notification(published_form, monkeypatch):
+    """The seam is stapel-core 0.31's direct telegram address, not a
+    transport this module implements."""
+    from stapel_forms import notifications, services
+
+    calls = []
+    monkeypatch.setattr(
+        "stapel_core.notifications.publish.request_notification",
+        lambda ntype, **kw: calls.append((ntype, kw)) or True,
+    )
+    services.update_form(
+        published_form, settings={"notify_telegram_chat_ids": ["-100999"]}
+    )
+    notifications.notify_submission_received(published_form)
+    assert calls[0][1]["telegram_chat_id"] == "-100999"
+    assert "email" not in calls[0][1]

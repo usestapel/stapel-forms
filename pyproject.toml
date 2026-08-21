@@ -23,10 +23,13 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # Floor 0.26.0: docs/errors.json is emitted with the `owner` field the
-    # committed contract artifact and its drift gate require, and
-    # AppSettings import-string keys are implicitly no_env from 0.24.0.
-    "stapel-core>=0.26.0,<1.0",
+    # Floor 0.31.0: `request_notification(telegram_chat_id=...)` is the
+    # direct address the resend path uses for a form-configured chat, and
+    # it does not exist earlier — on an older core a telegram target would
+    # be a TypeError at the moment somebody presses resend. 0.26 already
+    # supplied the rest (docs/errors.json with the `owner` field the drift
+    # gate requires; implicitly no_env AppSettings import-string keys).
+    "stapel-core>=0.31.0,<1.0",
     # The one extra runtime dependency (spec §9): the schema of a form IS a
     # list of stapel-attributes FeatureDefs, and submissions are validated
     # and normalized by its pipeline. An L1 library, imported directly —

@@ -1,0 +1,223 @@
+# stapel-forms 0.1.0
+
+Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.
+
+Contract: axes 5 · surface 31 · extension points 4 · operations 17 · error codes 62.
+Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
+
+## Configuration axes — what a product switches on
+Settings keys; `default` is what you get by saying nothing. Turning an axis off unmounts the operations it gates.
+- ACCEPT_PREVIOUS_VERSION_SECONDS [enum, default 0] — Grace period after a form changes
+  Zero. Publishing an edit mints a new immutable version, and a response in flight against the old one is refused wholesale so the renderer can refetch and tell the respondent the form changed — better than half-validating answers against a schema they never saw. A host that would rather accept the tail of in-flight fills opens a window here.
+- ALLOW_UNCAPTCHAED_PUBLIC [bool, default false] — Run public forms with no captcha
+  Off, and it is a confession switch rather than a feature: a deployment with open public forms and no captcha backend gets a startup warning naming this setting. Turning it on silences the warning by saying the refusal is deliberate — which is a defensible position for an internal deployment and a bad surprise for a public one.
+- FIELD_KINDS [list, default ["string", "int", "float", "bool", "select", "date", "header", "hex_color", "hierarchical_select", "convertible_unit"]] — What a form may ask for
+  The question types available to form authors. Ships as the ten builtin attribute kinds — text, number, yes/no, choice, date, section heading, colour, hierarchical choice, unit-bearing number. File uploads are absent by construction, not by omission: the platform's CDN cannot take custody of a stranger's bytes (no anonymous ingest, no auth-gated download), so a form attachment would be world-readable by URL. Widening this list is how a product adds its own question type after contributing it to stapel-attributes.
+- RETENTION_DAYS [enum, default 365] — How long responses are kept
+  365 days, and finite is the point: anonymous respondents sit outside the platform's user-keyed erasure apparatus, so a bounded lifetime is the honest privacy mechanism rather than an implied promise. A form may shorten its own horizon; lengthening past the module ceiling requires raising the ceiling, so one form's settings cannot quietly rewrite the deployment's retention policy. Setting it to nothing keeps answers forever — an explicit choice a host makes, never the shipped default.
+- STORE_CLIENT_META [bool, default false] — Keep respondent IP addresses
+  Off. The module does not persist a respondent's IP or browser string — rate limiting and network classification work off the live request and the cache, so nothing needs it on disk. A host that must keep abuse forensics turns it on, and that data then falls under the same retention clock as the answers themselves.
+
+## Usage surface — call these before writing your own
+This is the answer to "does Stapel already have something for X?". `instead of` names the outside symbol this one displaces.
+### gate_function
+- authorize — stapel_forms.authz.authorize
+  instead of: stapel_core.comm.call, stapel_core.django.workspaces.require_capability
+  THE access decision for the admin surface. Returns allow|deny|unavailable (503, never 403-on-outage); fail-closed via workspaces.check_capability by comm name. Every new admin read or write routes through this — a second membership check is how a capability later ships half-enforced.
+- get_form — stapel_forms.services.get_form
+  instead of: Form.objects.get
+  Fetch one live form inside a workspace scope — a form in another tenant, or in the trash, is a 404 rather than a row you have to remember to filter.
+- get_submission — stapel_forms.services.get_submission
+  instead of: Submission.objects.get
+  One response inside a workspace scope.
+- list_forms — stapel_forms.services.list_forms
+  instead of: Form.objects.filter
+  The workspace's live forms, newest first, optionally narrowed by state.
+- list_submissions — stapel_forms.services.list_submissions
+  instead of: Submission.objects.filter, offset pagination
+  Keyset page of a form's responses, newest first, capped service-side.
+- resolve_public — stapel_forms.services.resolve_public
+  instead of: Form.objects.filter(public_id=...)
+  Resolve a public handle with the uniform-404 discipline: unknown handle, soft-deleted form and draft are one byte-identical 404, while closed is 410 because that handle was public by definition and the renderer needs the difference.
+- set_state — stapel_forms.services.set_state
+  instead of: Form.state assignment
+  Open or close a form for submissions: enforces the per-workspace open-form cap, refuses opening an unpublished form, and emits form.closed exactly once.
+- submit — stapel_forms.services.submit
+  instead of: Submission.objects.create, storing request.data
+  Accept one answered form: active-version check, volume cap, validation, normalization into typed storage and the ids-only event, all in one transaction. Nothing reaches disk that the version's own configs did not produce.
+- validate_answers — stapel_forms.schema.validate_answers
+  instead of: stapel_attributes.validation.validate_dto_structured
+  Validate a submitted answer set against a published schema, returning per-field errors that carry params.field plus the unknown slugs the attributes engine would have ignored. The engine is right to ignore them for listings and wrong for a public form.
+- validate_schema — stapel_forms.schema.validate_schema
+  instead of: stapel_attributes.validation.validate_configs_structured
+  Refuse a draft that may not become a published version: field cap, kind allowlist, duplicate slugs, config keys the attributes dataclass would silently drop, then per-field config validity.
+### predicate
+- answer_columns — stapel_forms.schema.answer_columns
+  instead of: a union of columns over mutated schemas
+  The (slug, label) columns of one version for review and export, section headings omitted. Stable per version — which is what the version FK buys.
+- escape_cell — stapel_forms.export.escape_cell
+  instead of: str(value)
+  Render a stored answer as a CSV-safe string, escaping the leading characters a spreadsheet would execute.
+- export_filename — stapel_forms.export.export_filename
+  instead of: putting an admin-authored title into Content-Disposition
+  A safe attachment filename derived from the form title.
+- schema_fields — stapel_forms.schema.schema_fields
+  instead of: schema['fields']
+  The field-def list of a stored schema, tolerant of anything already on disk.
+- schema_meta — stapel_forms.schema.schema_meta
+  instead of: schema['meta']
+  The form-level meta (title, description, confirmation text, submit label) of a stored schema.
+### factory
+- create_form — stapel_forms.services.create_form
+  instead of: secrets.token_urlsafe, stapel_forms.models.Form.objects.create
+  Create a workspace-keyed form as a draft, with its non-enumerable public handle already minted and its retention override validated.
+- csv_rows — stapel_forms.export.csv_rows
+  instead of: csv.writer over a full queryset
+  One streamed, page-capped CSV export of a single version's responses, plus the keyset cursor for the next page. An export is the one read whose size is chosen by whoever filled the form in.
+- delete_form — stapel_forms.services.delete_form
+  instead of: Form.delete
+  Soft-delete: intake stops immediately and rows survive for review until the retention purge cascades them.
+- delete_submission — stapel_forms.services.delete_submission
+  instead of: waiting for retention
+  Destroy one response — the practical channel for an erasure request that arrives by email, until an email-keyed GDPR subject exists upstream.
+- erase_user_submissions — stapel_forms.services.erase_user_submissions
+  instead of: Submission.objects.filter(...).delete
+  Erase a user's answers while keeping the tombstone, so response counts and per-version analytics stay truthful.
+- get_forms_beat_schedule — stapel_forms.tasks.get_forms_beat_schedule
+  instead of: hardcoding the task name and crontab in host settings
+  The beat entry for the retention purge on the configured cadence, for a host to spread into CELERY_BEAT_SCHEDULE.
+- normalize_schema — stapel_forms.schema.normalize_schema
+  instead of: indexing into a posted JSON body
+  Coerce an authored schema (full envelope or bare field list) into the stored shape, refusing anything else as a schema error rather than a 500 three layers down.
+- publish — stapel_forms.services.publish
+  instead of: FormVersion.objects.create, mutating a live FormVersion.schema
+  Validate the draft (caps, kind allowlist, duplicate slugs, silently-dropped config keys, per-field config validity) and freeze it as the next immutable version, atomically with the form.published emit.
+- purge_deleted_forms — stapel_forms.services.purge_deleted_forms
+  instead of: Form.objects.filter(...).delete
+  Destroy soft-deleted forms and everything under them, in the order the PROTECT constraint requires (answers before the versions they reference).
+- purge_expired — stapel_forms.services.purge_expired
+  instead of: a retention setting nothing enforces
+  Hard-delete responses past their retention horizon, honouring per-form overrides. After the horizon the count claim expires too, so these rows leave no tombstone.
+- purge_expired_submissions — stapel_forms.tasks.purge_expired_submissions
+  instead of: a cron script calling into the ORM
+  The schedulable retention job: a plain callable, additionally a celery shared task under a stable name when celery is installed, logging what it destroyed. A retention policy nobody schedules is a promise, not a mechanism.
+- resend_submission — stapel_forms.services.resend_submission
+  instead of: stapel_core.notifications.publish.request_notification
+  Re-deliver one response to the form's notify targets or to an explicit override. Not cooldown-gated: the cooldown suppresses a respondent-driven flood, and an operator asking for one letter is not one.
+- rotate_link — stapel_forms.services.rotate_link
+  instead of: deleting and recreating the form
+  Mint a new public handle after a leak. Every distributed link dies and the row keeps its responses — which is the whole point of rotating rather than recreating.
+- save_draft — stapel_forms.services.save_draft
+  instead of: writing Form.draft_schema directly
+  Replace the builder's scratchpad. Deliberately permissive — a half-built form must be savable, and publish is the gate.
+- to_dao — stapel_forms.schema.to_dao
+  instead of: stapel_attributes.validation.normalize_to_dao
+  Normalize validated answers into typed stored shapes. Never call it on unvalidated input: the engine's normalizer skips rather than refuses, so an invalid value would round-trip into storage.
+- update_form — stapel_forms.services.update_form
+  instead of: Form.save
+  Rename a form or replace its settings blob; the per-form retention override is checked against the module ceiling here, so one form's settings can never quietly rewrite the deployment's retention promise.
+
+## Extension points — what a product replaces, fork-free
+- FIELD_KINDS [allowlist]
+  Which stapel-attributes kinds a form schema may use (default: the ten builtins). A host that registers a custom kind through STAPEL_ATTRIBUTES['EXTRA_TYPES'] or register_feature_type() adds it here to make it askable — registering a type somewhere in the process never by itself opens it to strangers on a public URL.
+- PRESENTERS [swap_keys]
+  Every DTO is built by a presenter resolved through STAPEL_SWAP — swap keys FORMS_FORM_PRESENTER / FORMS_VERSION_PRESENTER / FORMS_SUBMISSION_PRESENTER reshape the form, version and response envelopes of every admin endpoint without forking a view. The anonymous envelope is deliberately not swappable: it is the one shape whose contents are a security decision.
+- attribute type registry [merge_registry]
+  The field vocabulary itself is stapel-attributes' open registry, not a forms-local type system: a new question type is a type contribution there (config + DTO + DAO + validation), and it becomes server-validated in forms for free. The React pair mirrors it with registerFormFieldWidget.
+- serializer_seams [class_override]
+  Every view declares request/response serializer seams (SerializerSeamMixin) — subclass the view, override the attribute, remount the URL.
+
+## Fits with — fleet dependencies
+- stapel-attributes (required) — the field vocabulary IS this library's FeatureDef registry, and every submission is validated and normalized by its pipeline — forms defines no field types of its own
+- stapel-core (required) — comm bus (form.* Actions, the workspaces.check_capability client), JWT authentication, unified error envelope, netintel-tiered captcha, notification publishing, GDPR provider registry, staff-mandate declarations, AppSettings config layer
+- stapel-gdpr (optional) — the FormsGDPRProvider registers itself for authenticated respondents; hosts must also list "forms" in STAPEL_GDPR['DATA_OWNERS'] or the erasure closure never completes (check stapel_forms.W003)
+- stapel-notifications (optional) — notify-on-submit and resend request notifications through stapel-core; without a notifications service the rows are still stored and the events still emitted, but nobody is told. The forms.submission_received / forms.submission_resend routing entries must exist there (or in the host's STAPEL_NOTIFICATIONS['TYPES'])
+- stapel-workspaces (optional) — every admin request asks the workspaces.check_capability comm Function (fail-closed, deny-by-default) — stapel-workspaces is the shelf's answerer; any provider of that Function satisfies the contract, and without one the admin surface denies while the public respondent endpoints keep working
+
+## HTTP operations (17) — call by operationId, never by a typed path
+Paths are relative to `/forms/api/v1/`.
+### Forms
+- POST /forms — forms_api_v1_forms_create
+- DELETE /forms/{form_id} — forms_api_v1_forms_destroy
+- PUT /forms/{form_id}/draft — forms_api_v1_forms_draft_update
+- GET /forms — forms_api_v1_forms_list
+- PATCH /forms/{form_id} — forms_api_v1_forms_partial_update
+- POST /forms/{form_id}/publish — forms_api_v1_forms_publish_create
+- GET /forms/{form_id} — forms_api_v1_forms_retrieve
+- POST /forms/{form_id}/rotate-link — forms_api_v1_forms_rotate_link_create
+- POST /forms/{form_id}/state — forms_api_v1_forms_state_create
+- GET /forms/{form_id}/versions — forms_api_v1_forms_versions_list
+### Forms / public
+- GET /public/{public_id}/ — forms_api_v1_public_retrieve
+- POST /public/{public_id}/submissions/ — forms_api_v1_public_submissions_create
+### Forms / responses
+- GET /forms/{form_id}/submissions/export — forms_api_v1_forms_submissions_export_retrieve
+- GET /forms/{form_id}/submissions — forms_api_v1_forms_submissions_list
+- DELETE /submissions/{submission_id} — forms_api_v1_submissions_destroy
+- POST /submissions/{submission_id}/resend — forms_api_v1_submissions_resend_create
+- GET /submissions/{submission_id} — forms_api_v1_submissions_retrieve
+
+## Error codes (62) — the StapelError envelope
+Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
+- error.400.bad_request [400] fix_input
+- error.400.captcha_invalid [400] retry
+- error.400.captcha_required [400] retry
+- error.400.expected_list [400] fix_input
+- error.400.field.blank [400] fix_input {field}
+- error.400.field.does_not_exist [400] fix_input {field}
+- error.400.field.invalid [400] fix_input {field}
+- error.400.field.invalid_choice [400] fix_input {field}
+- error.400.field.max_length [400] fix_input {field,max_length}
+- error.400.field.max_value [400] fix_input {field,max_value}
+- error.400.field.min_length [400] fix_input {field,min_length}
+- error.400.field.min_value [400] fix_input {field,min_value}
+- error.400.field.null [400] fix_input {field}
+- error.400.field.required [400] fix_input {field}
+- error.400.field.unique [400] fix_input {field}
+- error.400.forms_answers_not_object [400] fix_input
+- error.400.forms_duplicate_slug [400] fix_input {slug}
+- error.400.forms_empty_schema [400] fix_input
+- error.400.forms_invalid_retention [400] fix_input
+- error.400.forms_invalid_schema [400] fix_input
+- error.400.forms_invalid_state [400] fix_input
+- error.400.forms_kind_not_allowed [400] fix_input {kind}
+- error.400.forms_no_draft [400] fix_input
+- error.400.forms_no_recipients [400] fix_input
+- error.400.forms_not_published [400] fix_input
+- error.400.forms_too_many_fields [400] fix_input
+- error.400.forms_too_many_open [400] contact_support
+- error.400.forms_unknown_field [400] fix_input
+- error.400.invalid_ad_id [400] fix_input
+- error.400.validation_error [400] fix_input
+- error.400.verification_failed [400] verify
+- error.400.verification_invalid_factor [400] verify
+- error.401.unauthorized [401] reauthenticate
+- error.402.payment_required [402] retry
+- error.403.forbidden [403] retry
+- error.403.forms_forbidden [403] contact_support
+- error.403.network_blocked [403] contact_support
+- error.403.verification_enrollment_required [403] verify
+- error.403.verification_required [403] verify
+- error.404.ad_not_found [404] retry
+- error.404.forms_not_found [404] verify
+- error.404.forms_submission_not_found [404] verify
+- error.404.not_found [404] retry
+- error.404.verification_challenge_not_found [404] verify
+- error.405.method_not_allowed [405] retry
+- error.406.not_acceptable [406] retry
+- error.408.request_timeout [408] retry
+- error.409.conflict [409] fix_input
+- error.409.forms_submission_cap [409] contact_support
+- error.409.forms_version_superseded [409] retry
+- error.410.forms_closed [410] contact_support
+- error.410.gone [410] retry
+- error.413.forms_body_too_large [413] fix_input
+- error.413.payload_too_large [413] retry
+- error.415.unsupported_media_type [415] retry
+- error.422.unprocessable_entity [422] wait_and_retry
+- error.423.locked [423] wait_and_retry
+- error.423.verification_locked [423] wait_and_retry
+- error.429.rate_limit [429] wait_and_retry {retry_after_minutes}
+- error.429.too_many_requests [429] wait_and_retry
+- error.500.internal [500] contact_support
+- error.503.forms_workspaces_unavailable [503] wait_and_retry

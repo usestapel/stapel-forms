@@ -578,7 +578,9 @@ class SubmissionResendView(SerializerSeamMixin, APIView):
         body = self.get_request_serializer_class()(data=request.data or {})
         body.is_valid(raise_exception=True)
         sent = services.resend_submission(
-            submission, recipients=body.validated_data.get("recipients")
+            submission,
+            recipients=body.validated_data.get("recipients"),
+            telegram_chat_ids=body.validated_data.get("telegram_chat_ids"),
         )
         return StapelResponse(
             self.get_response_serializer_class()(present_resend_result(sent)).data

@@ -22,16 +22,20 @@ PYTHON ?= python3
 # Emit the contract triad + capabilities.json + llms.txt, then assemble
 # README.md from docs/readme.md plus everything above.
 #
-# The llms.txt budget stays at the generator's default: this module has a
-# deliberately small surface (two anonymous routes plus capability-gated
-# CRUD), and if that ever stops being true the honest move is to raise the
-# ceiling on purpose, never to shorten intent lines until they fit — a
-# trimmed context file is indistinguishable from a complete one at the
-# point of use, which is the failure mode the budget gate exists to catch.
+# The llms.txt budget is raised from the generator's default 4000 to 5000,
+# the same exception stapel-recordings (5000), stapel-workspaces (4500) and
+# stapel-auth (8000) already take. The measured document is ~4710 tokens,
+# and the bulk of it is the 31-entry usage surface plus the 21-key error
+# catalogue — a service-layer library whose whole point is that callers use
+# its functions instead of writing their own version of them. Raise the
+# ceiling deliberately; do NOT shorten the `intent` lines in
+# docs/capabilities.meta.json to fit, because a trimmed context file reads
+# exactly like a complete one at the point of use, which is the failure
+# mode the hard budget exists to prevent.
 contract:
 	$(PYTHON) -m stapel_forms._codegen --out docs
 	$(PYTHON) -m stapel_forms._capabilities --out docs
-	$(PYTHON) -m stapel_tools.llms_txt . --out docs
+	$(PYTHON) -m stapel_tools.llms_txt . --out docs --budget 5000
 	$(PYTHON) -m stapel_tools.readme .
 
 # Drift gate: regenerate into a temp dir and diff against the committed docs/*.
@@ -39,7 +43,7 @@ contract-check:
 	@tmp=$$(mktemp -d); \
 	$(PYTHON) -m stapel_forms._codegen --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
 	$(PYTHON) -m stapel_forms._capabilities --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
-	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
+	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 5000 || { rm -rf "$$tmp"; exit 1; }; \
 	rc=0; \
 	for f in schema.json flows.json errors.json capabilities.json llms.txt; do \
 		if ! diff -q "docs/$$f" "$$tmp/$$f" >/dev/null 2>&1; then \

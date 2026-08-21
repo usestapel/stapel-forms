@@ -1,0 +1,321 @@
+{
+  "_comment": "Hand-curated layer of docs/capabilities.json (capability-config.md §2 p.3). The emitter (stapel_forms/_capabilities.py) merges this over the derived axes; an axis present in conf.py DEFAULTS but missing here (or vice versa) is a loud emission error. Keep business_label/summary in business language — they surface in CTO conversations, not in code. The axes are the settings that change WHAT THE PRODUCT PROMISES a respondent: which field kinds a form may ask, whether their IP is kept, how long their answers live, whether public forms run without a captcha, and whether a form that changed mid-fill still accepts the old one. The throttle rates, size gates, volume caps, page sizes and the notify cooldown are deliberately NOT axes — they bound abuse and tune throughput; they do not change the deal. `surface_roots` + `surface` are the usage surface (stapel_tools.surface): the symbols a host or sibling module is meant to CALL instead of writing its own version. Deliberately NOT rooted: events.py (the service layer emits form.* inside its own mutating transactions — host code that emits them double-publishes a public fact), functions.py/actions.py (comm surface, reached by name over the bus, never imported), checks.py (Django check callbacks), presenters.py (the view layer's DTO discipline; hosts reach it through the PRESENTERS swap keys documented as an extension point), notifications.py (the module owns its own reaction; a host that wants another one subscribes to form.submission.received).",
+  "provides": "Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.",
+  "requires": [
+    {
+      "module": "stapel-core",
+      "optional": false,
+      "reason": "comm bus (form.* Actions, the workspaces.check_capability client), JWT authentication, unified error envelope, netintel-tiered captcha, notification publishing, GDPR provider registry, staff-mandate declarations, AppSettings config layer"
+    },
+    {
+      "module": "stapel-attributes",
+      "optional": false,
+      "reason": "the field vocabulary IS this library's FeatureDef registry, and every submission is validated and normalized by its pipeline — forms defines no field types of its own"
+    },
+    {
+      "module": "stapel-workspaces",
+      "optional": true,
+      "reason": "every admin request asks the workspaces.check_capability comm Function (fail-closed, deny-by-default) — stapel-workspaces is the shelf's answerer; any provider of that Function satisfies the contract, and without one the admin surface denies while the public respondent endpoints keep working"
+    },
+    {
+      "module": "stapel-notifications",
+      "optional": true,
+      "reason": "notify-on-submit and resend request notifications through stapel-core; without a notifications service the rows are still stored and the events still emitted, but nobody is told. The forms.submission_received / forms.submission_resend routing entries must exist there (or in the host's STAPEL_NOTIFICATIONS['TYPES'])"
+    },
+    {
+      "module": "stapel-gdpr",
+      "optional": true,
+      "reason": "the FormsGDPRProvider registers itself for authenticated respondents; hosts must also list \"forms\" in STAPEL_GDPR['DATA_OWNERS'] or the erasure closure never completes (check stapel_forms.W003)"
+    }
+  ],
+  "extension_points": [
+    {
+      "name": "FIELD_KINDS",
+      "kind": "allowlist",
+      "summary": "Which stapel-attributes kinds a form schema may use (default: the ten builtins). A host that registers a custom kind through STAPEL_ATTRIBUTES['EXTRA_TYPES'] or register_feature_type() adds it here to make it askable — registering a type somewhere in the process never by itself opens it to strangers on a public URL."
+    },
+    {
+      "name": "attribute type registry",
+      "kind": "merge_registry",
+      "summary": "The field vocabulary itself is stapel-attributes' open registry, not a forms-local type system: a new question type is a type contribution there (config + DTO + DAO + validation), and it becomes server-validated in forms for free. The React pair mirrors it with registerFormFieldWidget."
+    },
+    {
+      "name": "PRESENTERS",
+      "kind": "swap_keys",
+      "summary": "Every DTO is built by a presenter resolved through STAPEL_SWAP — swap keys FORMS_FORM_PRESENTER / FORMS_VERSION_PRESENTER / FORMS_SUBMISSION_PRESENTER reshape the form, version and response envelopes of every admin endpoint without forking a view. The anonymous envelope is deliberately not swappable: it is the one shape whose contents are a security decision."
+    },
+    {
+      "name": "serializer_seams",
+      "kind": "class_override",
+      "summary": "Every view declares request/response serializer seams (SerializerSeamMixin) — subclass the view, override the attribute, remount the URL."
+    }
+  ],
+  "axes": {
+    "FIELD_KINDS": {
+      "business_label": "What a form may ask for",
+      "summary": "The question types available to form authors. Ships as the ten builtin attribute kinds — text, number, yes/no, choice, date, section heading, colour, hierarchical choice, unit-bearing number. File uploads are absent by construction, not by omission: the platform's CDN cannot take custody of a stranger's bytes (no anonymous ingest, no auth-gated download), so a form attachment would be world-readable by URL. Widening this list is how a product adds its own question type after contributing it to stapel-attributes."
+    },
+    "STORE_CLIENT_META": {
+      "business_label": "Keep respondent IP addresses",
+      "summary": "Off. The module does not persist a respondent's IP or browser string — rate limiting and network classification work off the live request and the cache, so nothing needs it on disk. A host that must keep abuse forensics turns it on, and that data then falls under the same retention clock as the answers themselves."
+    },
+    "RETENTION_DAYS": {
+      "business_label": "How long responses are kept",
+      "summary": "365 days, and finite is the point: anonymous respondents sit outside the platform's user-keyed erasure apparatus, so a bounded lifetime is the honest privacy mechanism rather than an implied promise. A form may shorten its own horizon; lengthening past the module ceiling requires raising the ceiling, so one form's settings cannot quietly rewrite the deployment's retention policy. Setting it to nothing keeps answers forever — an explicit choice a host makes, never the shipped default."
+    },
+    "ALLOW_UNCAPTCHAED_PUBLIC": {
+      "business_label": "Run public forms with no captcha",
+      "summary": "Off, and it is a confession switch rather than a feature: a deployment with open public forms and no captcha backend gets a startup warning naming this setting. Turning it on silences the warning by saying the refusal is deliberate — which is a defensible position for an internal deployment and a bad surprise for a public one."
+    },
+    "ACCEPT_PREVIOUS_VERSION_SECONDS": {
+      "business_label": "Grace period after a form changes",
+      "summary": "Zero. Publishing an edit mints a new immutable version, and a response in flight against the old one is refused wholesale so the renderer can refetch and tell the respondent the form changed — better than half-validating answers against a schema they never saw. A host that would rather accept the tail of in-flight fills opens a window here."
+    }
+  },
+  "surface_roots": [
+    {
+      "select": "functions",
+      "path": "services.py"
+    },
+    {
+      "select": "functions",
+      "path": "authz.py"
+    },
+    {
+      "select": "functions",
+      "path": "schema.py"
+    },
+    {
+      "select": "functions",
+      "path": "export.py"
+    },
+    {
+      "select": "functions",
+      "path": "tasks.py"
+    }
+  ],
+  "surface": {
+    "create_form": {
+      "kind": "factory",
+      "intent": "Create a workspace-keyed form as a draft, with its non-enumerable public handle already minted and its retention override validated.",
+      "instead_of": [
+        "stapel_forms.models.Form.objects.create",
+        "secrets.token_urlsafe"
+      ]
+    },
+    "update_form": {
+      "kind": "factory",
+      "intent": "Rename a form or replace its settings blob; the per-form retention override is checked against the module ceiling here, so one form's settings can never quietly rewrite the deployment's retention promise.",
+      "instead_of": [
+        "Form.save"
+      ]
+    },
+    "save_draft": {
+      "kind": "factory",
+      "intent": "Replace the builder's scratchpad. Deliberately permissive — a half-built form must be savable, and publish is the gate.",
+      "instead_of": [
+        "writing Form.draft_schema directly"
+      ]
+    },
+    "publish": {
+      "kind": "factory",
+      "intent": "Validate the draft (caps, kind allowlist, duplicate slugs, silently-dropped config keys, per-field config validity) and freeze it as the next immutable version, atomically with the form.published emit.",
+      "instead_of": [
+        "FormVersion.objects.create",
+        "mutating a live FormVersion.schema"
+      ]
+    },
+    "set_state": {
+      "kind": "gate_function",
+      "intent": "Open or close a form for submissions: enforces the per-workspace open-form cap, refuses opening an unpublished form, and emits form.closed exactly once.",
+      "instead_of": [
+        "Form.state assignment"
+      ]
+    },
+    "rotate_link": {
+      "kind": "factory",
+      "intent": "Mint a new public handle after a leak. Every distributed link dies and the row keeps its responses — which is the whole point of rotating rather than recreating.",
+      "instead_of": [
+        "deleting and recreating the form"
+      ]
+    },
+    "delete_form": {
+      "kind": "factory",
+      "intent": "Soft-delete: intake stops immediately and rows survive for review until the retention purge cascades them.",
+      "instead_of": [
+        "Form.delete"
+      ]
+    },
+    "get_form": {
+      "kind": "gate_function",
+      "intent": "Fetch one live form inside a workspace scope — a form in another tenant, or in the trash, is a 404 rather than a row you have to remember to filter.",
+      "instead_of": [
+        "Form.objects.get"
+      ]
+    },
+    "list_forms": {
+      "kind": "gate_function",
+      "intent": "The workspace's live forms, newest first, optionally narrowed by state.",
+      "instead_of": [
+        "Form.objects.filter"
+      ]
+    },
+    "resolve_public": {
+      "kind": "gate_function",
+      "intent": "Resolve a public handle with the uniform-404 discipline: unknown handle, soft-deleted form and draft are one byte-identical 404, while closed is 410 because that handle was public by definition and the renderer needs the difference.",
+      "instead_of": [
+        "Form.objects.filter(public_id=...)"
+      ]
+    },
+    "submit": {
+      "kind": "gate_function",
+      "intent": "Accept one answered form: active-version check, volume cap, validation, normalization into typed storage and the ids-only event, all in one transaction. Nothing reaches disk that the version's own configs did not produce.",
+      "instead_of": [
+        "Submission.objects.create",
+        "storing request.data"
+      ]
+    },
+    "list_submissions": {
+      "kind": "gate_function",
+      "intent": "Keyset page of a form's responses, newest first, capped service-side.",
+      "instead_of": [
+        "offset pagination",
+        "Submission.objects.filter"
+      ]
+    },
+    "get_submission": {
+      "kind": "gate_function",
+      "intent": "One response inside a workspace scope.",
+      "instead_of": [
+        "Submission.objects.get"
+      ]
+    },
+    "delete_submission": {
+      "kind": "factory",
+      "intent": "Destroy one response — the practical channel for an erasure request that arrives by email, until an email-keyed GDPR subject exists upstream.",
+      "instead_of": [
+        "waiting for retention"
+      ]
+    },
+    "resend_submission": {
+      "kind": "factory",
+      "intent": "Re-deliver one response to the form's notify targets or to an explicit override. Not cooldown-gated: the cooldown suppresses a respondent-driven flood, and an operator asking for one letter is not one.",
+      "instead_of": [
+        "stapel_core.notifications.publish.request_notification"
+      ]
+    },
+    "erase_user_submissions": {
+      "kind": "factory",
+      "intent": "Erase a user's answers while keeping the tombstone, so response counts and per-version analytics stay truthful.",
+      "instead_of": [
+        "Submission.objects.filter(...).delete"
+      ]
+    },
+    "purge_expired": {
+      "kind": "factory",
+      "intent": "Hard-delete responses past their retention horizon, honouring per-form overrides. After the horizon the count claim expires too, so these rows leave no tombstone.",
+      "instead_of": [
+        "a retention setting nothing enforces"
+      ]
+    },
+    "purge_deleted_forms": {
+      "kind": "factory",
+      "intent": "Destroy soft-deleted forms and everything under them, in the order the PROTECT constraint requires (answers before the versions they reference).",
+      "instead_of": [
+        "Form.objects.filter(...).delete"
+      ]
+    },
+    "authorize": {
+      "kind": "gate_function",
+      "intent": "THE access decision for the admin surface. Returns allow|deny|unavailable (503, never 403-on-outage); fail-closed via workspaces.check_capability by comm name. Every new admin read or write routes through this — a second membership check is how a capability later ships half-enforced.",
+      "instead_of": [
+        "stapel_core.django.workspaces.require_capability",
+        "stapel_core.comm.call"
+      ]
+    },
+    "normalize_schema": {
+      "kind": "factory",
+      "intent": "Coerce an authored schema (full envelope or bare field list) into the stored shape, refusing anything else as a schema error rather than a 500 three layers down.",
+      "instead_of": [
+        "indexing into a posted JSON body"
+      ]
+    },
+    "validate_schema": {
+      "kind": "gate_function",
+      "intent": "Refuse a draft that may not become a published version: field cap, kind allowlist, duplicate slugs, config keys the attributes dataclass would silently drop, then per-field config validity.",
+      "instead_of": [
+        "stapel_attributes.validation.validate_configs_structured"
+      ]
+    },
+    "validate_answers": {
+      "kind": "gate_function",
+      "intent": "Validate a submitted answer set against a published schema, returning per-field errors that carry params.field plus the unknown slugs the attributes engine would have ignored. The engine is right to ignore them for listings and wrong for a public form.",
+      "instead_of": [
+        "stapel_attributes.validation.validate_dto_structured"
+      ]
+    },
+    "to_dao": {
+      "kind": "factory",
+      "intent": "Normalize validated answers into typed stored shapes. Never call it on unvalidated input: the engine's normalizer skips rather than refuses, so an invalid value would round-trip into storage.",
+      "instead_of": [
+        "stapel_attributes.validation.normalize_to_dao"
+      ]
+    },
+    "schema_fields": {
+      "kind": "predicate",
+      "intent": "The field-def list of a stored schema, tolerant of anything already on disk.",
+      "instead_of": [
+        "schema['fields']"
+      ]
+    },
+    "schema_meta": {
+      "kind": "predicate",
+      "intent": "The form-level meta (title, description, confirmation text, submit label) of a stored schema.",
+      "instead_of": [
+        "schema['meta']"
+      ]
+    },
+    "answer_columns": {
+      "kind": "predicate",
+      "intent": "The (slug, label) columns of one version for review and export, section headings omitted. Stable per version — which is what the version FK buys.",
+      "instead_of": [
+        "a union of columns over mutated schemas"
+      ]
+    },
+    "csv_rows": {
+      "kind": "factory",
+      "intent": "One streamed, page-capped CSV export of a single version's responses, plus the keyset cursor for the next page. An export is the one read whose size is chosen by whoever filled the form in.",
+      "instead_of": [
+        "csv.writer over a full queryset"
+      ]
+    },
+    "escape_cell": {
+      "kind": "predicate",
+      "intent": "Render a stored answer as a CSV-safe string, escaping the leading characters a spreadsheet would execute.",
+      "instead_of": [
+        "str(value)"
+      ]
+    },
+    "export_filename": {
+      "kind": "predicate",
+      "intent": "A safe attachment filename derived from the form title.",
+      "instead_of": [
+        "putting an admin-authored title into Content-Disposition"
+      ]
+    },
+    "purge_expired_submissions": {
+      "kind": "factory",
+      "intent": "The schedulable retention job: a plain callable, additionally a celery shared task under a stable name when celery is installed, logging what it destroyed. A retention policy nobody schedules is a promise, not a mechanism.",
+      "instead_of": [
+        "a cron script calling into the ORM"
+      ]
+    },
+    "get_forms_beat_schedule": {
+      "kind": "factory",
+      "intent": "The beat entry for the retention purge on the configured cadence, for a host to spread into CELERY_BEAT_SCHEDULE.",
+      "instead_of": [
+        "hardcoding the task name and crontab in host settings"
+      ]
+    }
+  }
+}

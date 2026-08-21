@@ -343,18 +343,27 @@ def delete_submission(submission: Submission) -> None:
     submission.delete()
 
 
-def resend_submission(submission: Submission, *, recipients=None) -> int:
+def resend_submission(submission: Submission, *, recipients=None,
+                      telegram_chat_ids=None) -> int:
     """Re-deliver one submission to the form's notify targets.
 
     Admin-initiated, therefore cooldown-independent (spec §11a): the
     cooldown exists to stop a respondent-driven flood, and an operator
     looking at a row is not a flood.
-    """
-    from .notifications import notify_recipients, notify_resend
 
-    targets = [e for e in (recipients or []) if isinstance(e, str) and e.strip()]
-    if not targets:
-        targets = notify_recipients(submission.form)
+    An explicit destination override replaces the form's targets entirely
+    rather than adding to them — "send this one to legal" must not also
+    re-send it to everybody who already got it.
+    """
+    from .notifications import TARGET_KINDS, notify_resend, notify_targets
+
+    override = [("email", e) for e in (recipients or []) if str(e).strip()]
+    override += [
+        (TARGET_KINDS["notify_telegram_chat_ids"], str(c).strip())
+        for c in (telegram_chat_ids or [])
+        if str(c).strip()
+    ]
+    targets = override or notify_targets(submission.form)
     if not targets:
         raise FormsError(400, ERR_400_NO_RECIPIENTS)
     return notify_resend(submission.form, submission, targets)

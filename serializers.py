@@ -109,8 +109,18 @@ class SubmitSerializer(serializers.Serializer):
 
 
 class ResendSerializer(serializers.Serializer):
+    """Optional destination override for a resend.
+
+    Given either list, the form's own configured targets are replaced, not
+    supplemented: "send this one to legal" must not also re-send it to
+    everyone who already has it.
+    """
+
     recipients = serializers.ListField(
         child=serializers.EmailField(), required=False, allow_empty=True
+    )
+    telegram_chat_ids = serializers.ListField(
+        child=serializers.CharField(max_length=64), required=False, allow_empty=True
     )
 
 
