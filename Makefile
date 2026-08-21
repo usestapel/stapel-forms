@@ -1,0 +1,69 @@
+# stapel-forms — contract emission + drift gate (contract-pipeline.md §2-3).
+#
+# This module emits its OWN contract triad (schema.json + flows.json +
+# errors.json) from a single-module {forms + core} Django instance mounted
+# at the canonical /forms/api/v1 prefix (see _codegen.py /
+# _codegen_settings.py / codegen_urls.py).
+#
+# stapel-forms is not mounted in stapel-example-monolith, so there is no
+# aggregate slice to diff these artifacts against for byte-identity —
+# validation is standalone (determinism + closure + canonical prefix; see
+# tests/test_contract.py, which is the authoritative CI gate). These
+# targets are the dev-loop convenience.
+#
+# PYTHON must have the module + its deps importable (the repo venv, or a
+# CI venv). Emission is pinned to Python 3.12: drf-spectacular renders
+# component descriptions differently across minors, and a contract emitted
+# on the wrong one produces false diffs forever.
+PYTHON ?= python3
+
+.PHONY: contract contract-check migration-lint lint test emit-check
+
+# Emit the contract triad + capabilities.json + llms.txt, then assemble
+# README.md from docs/readme.md plus everything above.
+#
+# The llms.txt budget stays at the generator's default: this module has a
+# deliberately small surface (two anonymous routes plus capability-gated
+# CRUD), and if that ever stops being true the honest move is to raise the
+# ceiling on purpose, never to shorten intent lines until they fit — a
+# trimmed context file is indistinguishable from a complete one at the
+# point of use, which is the failure mode the budget gate exists to catch.
+contract:
+	$(PYTHON) -m stapel_forms._codegen --out docs
+	$(PYTHON) -m stapel_forms._capabilities --out docs
+	$(PYTHON) -m stapel_tools.llms_txt . --out docs
+	$(PYTHON) -m stapel_tools.readme .
+
+# Drift gate: regenerate into a temp dir and diff against the committed docs/*.
+contract-check:
+	@tmp=$$(mktemp -d); \
+	$(PYTHON) -m stapel_forms._codegen --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
+	$(PYTHON) -m stapel_forms._capabilities --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
+	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
+	rc=0; \
+	for f in schema.json flows.json errors.json capabilities.json llms.txt; do \
+		if ! diff -q "docs/$$f" "$$tmp/$$f" >/dev/null 2>&1; then \
+			echo "DRIFT: docs/$$f is stale — run 'make contract' and commit it"; \
+			diff "docs/$$f" "$$tmp/$$f" | head -20; rc=1; \
+		fi; \
+	done; \
+	rm -rf "$$tmp"; \
+	$(PYTHON) -m stapel_tools.readme . --check || rc=1; \
+	if [ $$rc -eq 0 ]; then echo "contract-check: docs/{schema,flows,errors,capabilities,llms.txt} + README.md up to date"; fi; \
+	exit $$rc
+
+# Expand/contract gate for Django migrations (release-management.md §3).
+migration-lint:
+	$(PYTHON) -m stapel_tools.migration_lint . --strict $(if $(BASE_SHA),--base-sha $(BASE_SHA),)
+
+# Outbox discipline: an emit that is not inside the mutating transaction,
+# or one whose failure is swallowed, is a row that exists without the fact
+# it announced.
+emit-check:
+	$(PYTHON) -m stapel_core.lint.emit_check .
+
+lint:
+	ruff check . --select E,F,W --ignore E501
+
+test:
+	$(PYTHON) -m pytest tests/ -q

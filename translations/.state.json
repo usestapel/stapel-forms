@@ -1,0 +1,174 @@
+{
+  "errors.es": {
+    "error.400.forms_answers_not_object": {
+      "hash": "5514bf4583902229",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_duplicate_slug": {
+      "hash": "99cd0117909e5595",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_empty_schema": {
+      "hash": "f5268b1f9b3c7b96",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_invalid_retention": {
+      "hash": "a02764d0fc3c2aa2",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_invalid_schema": {
+      "hash": "2247b0d1059e4b80",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_invalid_state": {
+      "hash": "656459c78723660f",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_kind_not_allowed": {
+      "hash": "bc4156ac31164543",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_no_draft": {
+      "hash": "a8ce770965ac41d6",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_no_recipients": {
+      "hash": "723745293224acb8",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_not_published": {
+      "hash": "9c65d11cbf013274",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_too_many_fields": {
+      "hash": "2743801470ad08a2",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_too_many_open": {
+      "hash": "c658311f87e695ab",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_unknown_field": {
+      "hash": "e0f8ee8b4dab3d0c",
+      "origin": "seed:authored"
+    },
+    "error.403.forms_forbidden": {
+      "hash": "f464d71f87da3d1f",
+      "origin": "seed:authored"
+    },
+    "error.404.forms_not_found": {
+      "hash": "faf05275f298aedb",
+      "origin": "seed:authored"
+    },
+    "error.404.forms_submission_not_found": {
+      "hash": "bdd6a7a1395a0de8",
+      "origin": "seed:authored"
+    },
+    "error.409.forms_submission_cap": {
+      "hash": "7219a2a8252602c3",
+      "origin": "seed:authored"
+    },
+    "error.409.forms_version_superseded": {
+      "hash": "a41cd4d45314f60c",
+      "origin": "seed:authored"
+    },
+    "error.410.forms_closed": {
+      "hash": "6c4576cbc12ad37e",
+      "origin": "seed:authored"
+    },
+    "error.413.forms_body_too_large": {
+      "hash": "a14d1ff37c01a50e",
+      "origin": "seed:authored"
+    },
+    "error.503.forms_workspaces_unavailable": {
+      "hash": "955a6b8b68652447",
+      "origin": "seed:authored"
+    }
+  },
+  "errors.ru": {
+    "error.400.forms_answers_not_object": {
+      "hash": "5514bf4583902229",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_duplicate_slug": {
+      "hash": "99cd0117909e5595",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_empty_schema": {
+      "hash": "f5268b1f9b3c7b96",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_invalid_retention": {
+      "hash": "a02764d0fc3c2aa2",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_invalid_schema": {
+      "hash": "2247b0d1059e4b80",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_invalid_state": {
+      "hash": "656459c78723660f",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_kind_not_allowed": {
+      "hash": "bc4156ac31164543",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_no_draft": {
+      "hash": "a8ce770965ac41d6",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_no_recipients": {
+      "hash": "723745293224acb8",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_not_published": {
+      "hash": "9c65d11cbf013274",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_too_many_fields": {
+      "hash": "2743801470ad08a2",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_too_many_open": {
+      "hash": "c658311f87e695ab",
+      "origin": "seed:authored"
+    },
+    "error.400.forms_unknown_field": {
+      "hash": "e0f8ee8b4dab3d0c",
+      "origin": "seed:authored"
+    },
+    "error.403.forms_forbidden": {
+      "hash": "f464d71f87da3d1f",
+      "origin": "seed:authored"
+    },
+    "error.404.forms_not_found": {
+      "hash": "faf05275f298aedb",
+      "origin": "seed:authored"
+    },
+    "error.404.forms_submission_not_found": {
+      "hash": "bdd6a7a1395a0de8",
+      "origin": "seed:authored"
+    },
+    "error.409.forms_submission_cap": {
+      "hash": "7219a2a8252602c3",
+      "origin": "seed:authored"
+    },
+    "error.409.forms_version_superseded": {
+      "hash": "a41cd4d45314f60c",
+      "origin": "seed:authored"
+    },
+    "error.410.forms_closed": {
+      "hash": "6c4576cbc12ad37e",
+      "origin": "seed:authored"
+    },
+    "error.413.forms_body_too_large": {
+      "hash": "a14d1ff37c01a50e",
+      "origin": "seed:authored"
+    },
+    "error.503.forms_workspaces_unavailable": {
+      "hash": "955a6b8b68652447",
+      "origin": "seed:authored"
+    }
+  }
+}

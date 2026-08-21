@@ -1,0 +1,23 @@
+{
+  "error.400.forms_answers_not_object": "Las respuestas deben ser un objeto indexado por identificador de campo",
+  "error.400.forms_duplicate_slug": "El identificador de campo {slug} aparece más de una vez",
+  "error.400.forms_empty_schema": "Un formulario debe tener al menos un campo para publicarse",
+  "error.400.forms_invalid_retention": "La retención por formulario solo puede acortar el periodo del módulo",
+  "error.400.forms_invalid_schema": "El esquema del formulario no es válido",
+  "error.400.forms_invalid_state": "Estado de formulario desconocido",
+  "error.400.forms_kind_not_allowed": "El tipo de campo {kind} no puede usarse en un formulario",
+  "error.400.forms_no_draft": "No hay ningún borrador que publicar",
+  "error.400.forms_no_recipients": "Este formulario no tiene ningún destinatario de notificaciones configurado",
+  "error.400.forms_not_published": "El formulario aún no tiene ninguna versión publicada",
+  "error.400.forms_too_many_fields": "El formulario tiene más campos de los que permite el límite",
+  "error.400.forms_too_many_open": "Este espacio de trabajo ya tiene el número máximo de formularios abiertos",
+  "error.400.forms_unknown_field": "La respuesta contiene un campo que el formulario no tiene",
+  "error.403.forms_forbidden": "No tienes acceso a este formulario",
+  "error.404.forms_not_found": "Formulario no encontrado",
+  "error.404.forms_submission_not_found": "Respuesta no encontrada",
+  "error.409.forms_submission_cap": "Este formulario ha alcanzado su límite de respuestas",
+  "error.409.forms_version_superseded": "El formulario cambió mientras lo rellenabas",
+  "error.410.forms_closed": "Este formulario está cerrado",
+  "error.413.forms_body_too_large": "La respuesta supera el tamaño máximo",
+  "error.503.forms_workspaces_unavailable": "El servicio de espacios de trabajo no está disponible"
+}

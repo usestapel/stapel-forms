@@ -1,0 +1,23 @@
+{
+  "error.400.forms_answers_not_object": "Ответы должны быть объектом с ключами-слагами полей",
+  "error.400.forms_duplicate_slug": "Слаг поля {slug} встречается более одного раза",
+  "error.400.forms_empty_schema": "Чтобы опубликовать форму, в ней должно быть хотя бы одно поле",
+  "error.400.forms_invalid_retention": "Индивидуальный срок хранения можно только сократить относительно модульного",
+  "error.400.forms_invalid_schema": "Схема формы некорректна",
+  "error.400.forms_invalid_state": "Неизвестное состояние формы",
+  "error.400.forms_kind_not_allowed": "Поле типа {kind} нельзя использовать в форме",
+  "error.400.forms_no_draft": "Нечего публиковать: черновик отсутствует",
+  "error.400.forms_no_recipients": "Для этой формы не настроен ни один получатель уведомлений",
+  "error.400.forms_not_published": "У формы ещё нет опубликованной версии",
+  "error.400.forms_too_many_fields": "В форме больше полей, чем допускает ограничение",
+  "error.400.forms_too_many_open": "В этом рабочем пространстве уже открыто предельное число форм",
+  "error.400.forms_unknown_field": "В ответе есть поле, которого нет в форме",
+  "error.403.forms_forbidden": "У вас нет доступа к этой форме",
+  "error.404.forms_not_found": "Форма не найдена",
+  "error.404.forms_submission_not_found": "Ответ не найден",
+  "error.409.forms_submission_cap": "Форма достигла предела числа ответов",
+  "error.409.forms_version_superseded": "Форма изменилась, пока вы её заполняли",
+  "error.410.forms_closed": "Эта форма закрыта",
+  "error.413.forms_body_too_large": "Ответ превышает предельный размер",
+  "error.503.forms_workspaces_unavailable": "Сервис рабочих пространств недоступен"
+}

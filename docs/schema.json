@@ -1,0 +1,1370 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "",
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/forms/api/v1/forms": {
+      "get": {
+        "operationId": "forms_api_v1_forms_list",
+        "description": "List the workspace's forms, or create one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FormPresenterDTO"
+                  }
+                },
+                "examples": {
+                  "FormPresenterDTO": {
+                    "value": [
+                      {
+                        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                        "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                        "title": "Contact us",
+                        "public_id": "k3JhQ2Zt8uY1sVb7cD9xLg",
+                        "state": "open",
+                        "active_version": 3,
+                        "active_version_id": "9aa1...",
+                        "draft_schema": null,
+                        "settings": {
+                          "notify_emails": [
+                            "sales@example.com"
+                          ]
+                        },
+                        "submission_count": 240,
+                        "created_at": "2026-08-21T10:00:00+00:00",
+                        "updated_at": "2026-08-21T10:00:00+00:00",
+                        "deleted_at": null
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "post": {
+        "operationId": "forms_api_v1_forms_create",
+        "description": "List the workspace's forms, or create one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "tags": [
+          "Forms"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/FormCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/FormCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormPresenterDTO"
+                },
+                "examples": {
+                  "FormPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "title": "Contact us",
+                      "public_id": "k3JhQ2Zt8uY1sVb7cD9xLg",
+                      "state": "open",
+                      "active_version": 3,
+                      "active_version_id": "9aa1...",
+                      "draft_schema": null,
+                      "settings": {
+                        "notify_emails": [
+                          "sales@example.com"
+                        ]
+                      },
+                      "submission_count": 240,
+                      "created_at": "2026-08-21T10:00:00+00:00",
+                      "updated_at": "2026-08-21T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/forms/api/v1/forms/{form_id}": {
+      "get": {
+        "operationId": "forms_api_v1_forms_retrieve",
+        "description": "Read, rename or soft-delete one form.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormPresenterDTO"
+                },
+                "examples": {
+                  "FormPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "title": "Contact us",
+                      "public_id": "k3JhQ2Zt8uY1sVb7cD9xLg",
+                      "state": "open",
+                      "active_version": 3,
+                      "active_version_id": "9aa1...",
+                      "draft_schema": null,
+                      "settings": {
+                        "notify_emails": [
+                          "sales@example.com"
+                        ]
+                      },
+                      "submission_count": 240,
+                      "created_at": "2026-08-21T10:00:00+00:00",
+                      "updated_at": "2026-08-21T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "patch": {
+        "operationId": "forms_api_v1_forms_partial_update",
+        "description": "Read, rename or soft-delete one form.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedFormPatch"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedFormPatch"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedFormPatch"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormPresenterDTO"
+                },
+                "examples": {
+                  "FormPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "title": "Contact us",
+                      "public_id": "k3JhQ2Zt8uY1sVb7cD9xLg",
+                      "state": "open",
+                      "active_version": 3,
+                      "active_version_id": "9aa1...",
+                      "draft_schema": null,
+                      "settings": {
+                        "notify_emails": [
+                          "sales@example.com"
+                        ]
+                      },
+                      "submission_count": 240,
+                      "created_at": "2026-08-21T10:00:00+00:00",
+                      "updated_at": "2026-08-21T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "delete": {
+        "operationId": "forms_api_v1_forms_destroy",
+        "description": "Read, rename or soft-delete one form.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/forms/api/v1/forms/{form_id}/draft": {
+      "put": {
+        "operationId": "forms_api_v1_forms_draft_update",
+        "description": "Replace the builder's scratchpad.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Draft"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Draft"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Draft"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormPresenterDTO"
+                },
+                "examples": {
+                  "FormPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "title": "Contact us",
+                      "public_id": "k3JhQ2Zt8uY1sVb7cD9xLg",
+                      "state": "open",
+                      "active_version": 3,
+                      "active_version_id": "9aa1...",
+                      "draft_schema": null,
+                      "settings": {
+                        "notify_emails": [
+                          "sales@example.com"
+                        ]
+                      },
+                      "submission_count": 240,
+                      "created_at": "2026-08-21T10:00:00+00:00",
+                      "updated_at": "2026-08-21T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/forms/api/v1/forms/{form_id}/publish": {
+      "post": {
+        "operationId": "forms_api_v1_forms_publish_create",
+        "description": "Freeze the draft as the next immutable version.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResultDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/forms/api/v1/forms/{form_id}/rotate-link": {
+      "post": {
+        "operationId": "forms_api_v1_forms_rotate_link_create",
+        "description": "Mint a new public handle, invalidating every distributed link.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormPresenterDTO"
+                },
+                "examples": {
+                  "FormPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "title": "Contact us",
+                      "public_id": "k3JhQ2Zt8uY1sVb7cD9xLg",
+                      "state": "open",
+                      "active_version": 3,
+                      "active_version_id": "9aa1...",
+                      "draft_schema": null,
+                      "settings": {
+                        "notify_emails": [
+                          "sales@example.com"
+                        ]
+                      },
+                      "submission_count": 240,
+                      "created_at": "2026-08-21T10:00:00+00:00",
+                      "updated_at": "2026-08-21T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/forms/api/v1/forms/{form_id}/state": {
+      "post": {
+        "operationId": "forms_api_v1_forms_state_create",
+        "description": "Open or close the form for submissions.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/State"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/State"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/State"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormPresenterDTO"
+                },
+                "examples": {
+                  "FormPresenterDTO": {
+                    "value": {
+                      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "workspace_id": "5cc26b64-0717-4562-b3fc-2c963f66a001",
+                      "title": "Contact us",
+                      "public_id": "k3JhQ2Zt8uY1sVb7cD9xLg",
+                      "state": "open",
+                      "active_version": 3,
+                      "active_version_id": "9aa1...",
+                      "draft_schema": null,
+                      "settings": {
+                        "notify_emails": [
+                          "sales@example.com"
+                        ]
+                      },
+                      "submission_count": 240,
+                      "created_at": "2026-08-21T10:00:00+00:00",
+                      "updated_at": "2026-08-21T10:00:00+00:00",
+                      "deleted_at": null
+                    }
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/forms/api/v1/forms/{form_id}/submissions": {
+      "get": {
+        "operationId": "forms_api_v1_forms_submissions_list",
+        "description": "Keyset page of a form's responses, newest first.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Keyset cursor: return responses submitted strictly before this timestamp."
+          },
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Restrict to responses answering this schema version."
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms / responses"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubmissionPresenterDTO"
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/forms/api/v1/forms/{form_id}/submissions/export": {
+      "get": {
+        "operationId": "forms_api_v1_forms_submissions_export_retrieve",
+        "description": "Stream responses as CSV.\n\nStreamed and page-capped rather than materialized: an export is the one\nread whose size is chosen by whoever filled the form in. The\nformula-injection escape lives in ``export.py`` so every consumer of\nthe CSV inherits it.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Keyset continuation, echoed back in the X-Forms-Next-Before header."
+          },
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Export one schema version's responses (its columns are the header row)."
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms / responses"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/forms/api/v1/forms/{form_id}/versions": {
+      "get": {
+        "operationId": "forms_api_v1_forms_versions_list",
+        "description": "The form's published versions, newest first.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "form_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FormVersionPresenterDTO"
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/forms/api/v1/public/{public_id}/": {
+      "get": {
+        "operationId": "forms_api_v1_public_retrieve",
+        "description": "Fetch a form's active schema by its public handle.\n\n**Permissions:** `AllowAny`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms / public"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicFormDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/forms/api/v1/public/{public_id}/submissions/": {
+      "post": {
+        "operationId": "forms_api_v1_public_submissions_create",
+        "description": "Answer a form. The only public write in this module.\n\n**Permissions:** `AllowAny`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms / public"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Submit"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Submit"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Submit"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          },
+          {}
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitResultDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
+    "/forms/api/v1/submissions/{submission_id}": {
+      "get": {
+        "operationId": "forms_api_v1_submissions_retrieve",
+        "description": "Read or delete one response.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms / responses"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionPresenterDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      },
+      "delete": {
+        "operationId": "forms_api_v1_submissions_destroy",
+        "description": "Read or delete one response.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms / responses"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body"
+          }
+        }
+      }
+    },
+    "/forms/api/v1/submissions/{submission_id}/resend": {
+      "post": {
+        "operationId": "forms_api_v1_submissions_resend_create",
+        "description": "Re-deliver one response to the form's notify targets.\n\nAdmin-initiated and therefore cooldown-independent: the auto-notify\ncooldown suppresses a respondent-driven flood, and an operator asking\nfor one letter is not one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "submission_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms / responses"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Resend"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Resend"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Resend"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResendResultDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Draft": {
+        "type": "object",
+        "properties": {
+          "schema": {}
+        },
+        "required": [
+          "schema"
+        ]
+      },
+      "FormCreate": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "draft_schema": {}
+        },
+        "required": [
+          "title",
+          "workspace_id"
+        ]
+      },
+      "FormPresenterDTO": {
+        "type": "object",
+        "description": "Presents a Form row to its workspace's admins.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "title"
+          },
+          "state": {
+            "type": "string",
+            "description": "state"
+          },
+          "public_id": {
+            "type": "string",
+            "description": "public id"
+          },
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "active_version": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Ordinal of the version currently served to respondents."
+          },
+          "active_version_id": {
+            "type": "string",
+            "nullable": true
+          },
+          "draft_schema": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true,
+            "description": "The builder's scratchpad; null once published."
+          },
+          "submission_count": {
+            "type": "integer"
+          },
+          "deleted_at": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "created_at",
+          "id",
+          "public_id",
+          "settings",
+          "state",
+          "title",
+          "updated_at",
+          "workspace_id"
+        ]
+      },
+      "FormVersionPresenterDTO": {
+        "type": "object",
+        "description": "Presents one published, immutable schema version.",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "description": "version"
+          },
+          "id": {
+            "type": "string"
+          },
+          "form_id": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "published_at": {
+            "type": "string"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true
+          },
+          "submission_count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "form_id",
+          "id",
+          "published_at",
+          "schema",
+          "version"
+        ]
+      },
+      "PatchedFormPatch": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
+      "PublicFormDTO": {
+        "type": "object",
+        "description": "What an anonymous respondent is allowed to know about a form.",
+        "properties": {
+          "public_id": {
+            "type": "string"
+          },
+          "version_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "public_id",
+          "version",
+          "version_id"
+        ]
+      },
+      "PublishResultDTO": {
+        "type": "object",
+        "description": "PublishResultDTO(version_id: 'str', version: 'int', published_at: 'str')",
+        "properties": {
+          "version_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "published_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "published_at",
+          "version",
+          "version_id"
+        ]
+      },
+      "Resend": {
+        "type": "object",
+        "properties": {
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "email"
+            }
+          }
+        }
+      },
+      "ResendResultDTO": {
+        "type": "object",
+        "description": "ResendResultDTO(sent: 'int')",
+        "properties": {
+          "sent": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sent"
+        ]
+      },
+      "State": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/StateEnum"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "StateEnum": {
+        "enum": [
+          "draft",
+          "open",
+          "closed"
+        ],
+        "type": "string",
+        "description": "* `draft` - draft\n* `open` - open\n* `closed` - closed"
+      },
+      "SubmissionPresenterDTO": {
+        "type": "object",
+        "description": "Presents one response to a workspace reviewer.\n\n``answers`` is presented as ``{slug: value}`` rather than the raw DAO\ndicts: the DAO carries display metadata copied from the schema (name,\norder, badge flags), which the reviewer already has from the version\nand which would otherwise be repeated on every row.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "form_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "version_id": {
+            "type": "string"
+          },
+          "answers": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "submitted_at": {
+            "type": "string"
+          },
+          "submitted_by": {
+            "type": "string",
+            "nullable": true,
+            "description": "Respondent user id, or null for an anonymous respondent."
+          },
+          "client_meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true,
+            "description": "Only populated where the host turned STORE_CLIENT_META on."
+          },
+          "erased_at": {
+            "type": "string",
+            "nullable": true,
+            "description": "Set when the answers were erased; the row is kept so counts stay truthful."
+          }
+        },
+        "required": [
+          "answers",
+          "form_id",
+          "id",
+          "submitted_at",
+          "version",
+          "version_id"
+        ]
+      },
+      "Submit": {
+        "type": "object",
+        "description": "The anonymous submit body.\n\n``version_id`` is what the client echoes back from the schema it\nrendered — it is what makes a racing publish a clean 409 instead of a\nsilent mis-validation. ``captcha_token`` is the seam the pair fills:\nthe netintel tier decides whether a token is required at all, so it\nstays optional here and the captcha layer refuses on its own terms.",
+        "properties": {
+          "answers": {},
+          "version_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "captcha_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "answers"
+        ]
+      },
+      "SubmitResultDTO": {
+        "type": "object",
+        "description": "The whole answer to a successful submit.\n\nDeliberately not the submission id: there is no public read of\nsubmissions, and handing out an identifier for a resource nobody may\nfetch only invites people to try.",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "confirmation": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "JWTCookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "stapel_jwt",
+        "description": "JWT token stored in cookie. Login via /auth/admin/ to get the cookie."
+      }
+    }
+  }
+}
