@@ -24,12 +24,132 @@
     "owner": "stapel_core"
   },
   {
+    "code": "error.400.description_too_long",
+    "status": 400,
+    "params": [
+      "max_length"
+    ],
+    "remediation": "fix_input",
+    "en": "Description must be at most {max_length} characters",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.description_too_short",
+    "status": 400,
+    "params": [
+      "min_length"
+    ],
+    "remediation": "fix_input",
+    "en": "Description must be at least {min_length} characters",
+    "owner": "stapel_attributes"
+  },
+  {
     "code": "error.400.expected_list",
     "status": 400,
     "params": [],
     "remediation": "fix_input",
     "en": "Expected a list of items",
     "owner": "stapel_core"
+  },
+  {
+    "code": "error.400.feature_above_maximum",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Value is above maximum for {feature}",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.feature_below_minimum",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Value is below minimum for {feature}",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.feature_invalid_config",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Invalid config for {feature}",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.feature_invalid_format",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Invalid format for {feature}",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.feature_invalid_type",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Invalid type for {feature}",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.feature_mandatory_missing",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Mandatory feature {feature} is required",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.feature_not_allowed",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Feature {feature} is not allowed here",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.feature_not_in_options",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Value is not in allowed options for {feature}",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.feature_unknown",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Unknown feature {feature}",
+    "owner": "stapel_attributes"
+  },
+  {
+    "code": "error.400.feature_unknown_type",
+    "status": 400,
+    "params": [
+      "feature"
+    ],
+    "remediation": "fix_input",
+    "en": "Unknown feature type for {feature}",
+    "owner": "stapel_attributes"
   },
   {
     "code": "error.400.field.blank",

@@ -12,6 +12,7 @@ from django.urls import path
 
 from .errors import FormsErrorKeysView
 from .views import (
+    FieldKindsView,
     FormDetailView,
     FormDraftView,
     FormListCreateView,
@@ -36,6 +37,11 @@ urlpatterns = [
         name="forms-public-submit",
     ),
     # Admin surface.
+    #
+    # The builder's dictionary. Workspace-scoped like every other admin
+    # route (the capability answer is per workspace) even though the
+    # catalogue itself is process-wide.
+    path("field-kinds", FieldKindsView.as_view(), name="forms-field-kinds"),
     path("forms", FormListCreateView.as_view(), name="forms-forms"),
     path("forms/<uuid:form_id>", FormDetailView.as_view(), name="forms-form-detail"),
     path("forms/<uuid:form_id>/draft", FormDraftView.as_view(), name="forms-form-draft"),

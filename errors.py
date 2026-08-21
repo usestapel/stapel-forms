@@ -1,11 +1,29 @@
 """i18n error keys of stapel-forms.
 
-Only ``error.<status>.forms_<slug>`` keys leave this package — human-readable
-strings are translations, never literals in responses. The English registry
-below is the source; ``translations/errors.<lang>.json`` ships the localized
-catalogues in the same release (owning keys means shipping their catalogues).
+Only ``error.<status>.forms_<slug>`` keys are OWNED by this package —
+human-readable strings are translations, never literals in responses. The
+English registry below is the source; ``translations/errors.<lang>.json``
+ships the localized catalogues in the same release (owning keys means
+shipping their catalogues).
+
+Per-field answer validation is stapel-attributes' pipeline, so the submit
+path returns its ``error.400.feature_*`` family at the TOP level of a
+refusal (``services.submit`` re-raises ``field_errors[0].code``). Those
+keys are registered — and translated — by stapel-attributes; this module
+only makes sure the registration RUNS wherever forms is mounted, so the
+emitted ``docs/errors.json`` lists every key this API can actually return.
 """
 from stapel_core.django.api.errors import ErrorKeysView, register_service_errors
+
+# stapel-attributes is an embedded (non-app) library: autodiscovery never
+# reaches its errors module, so without this import its 12 feature-validation
+# keys enter the registry only as a side effect of serializer imports —
+# errors.json emission then depends on whether the schema was built first.
+# The embedding app forces the registration deterministically. Same line as
+# stapel-listings/stapel-categories, which embed the same engine; ownership
+# stays with stapel_attributes (register_service_errors infers it from the
+# calling package), so nothing here double-owns the keys or their catalogues.
+import stapel_attributes.errors
 
 # ── Schema authoring / publish ───────────────────────────────────────
 ERR_400_INVALID_SCHEMA = "error.400.forms_invalid_schema"
@@ -86,6 +104,13 @@ STAPEL_FORMS_REMEDIATION = {
 
 register_service_errors(STAPEL_FORMS_ERRORS, remediation=STAPEL_FORMS_REMEDIATION)
 
+#: The stapel-attributes keys this module's API can return, listed (not
+#: re-registered) so the contract test can assert the artifact carries them.
+#: Not merged into :data:`STAPEL_FORMS_ERRORS`: that map is what the
+#: ``/error-keys/`` view publishes as *forms-owned*, and claiming these here
+#: would hand this package a catalogue obligation that is upstream's.
+ATTRIBUTE_VALIDATION_ERRORS = tuple(sorted(stapel_attributes.errors.ATTRIBUTES_ERRORS))
+
 
 class FormsErrorKeysView(ErrorKeysView):
     """The error-key listing the stapel-translate collector reads.
@@ -102,5 +127,10 @@ class FormsErrorKeysView(ErrorKeysView):
 
 __all__ = (
     [name for name in dir() if name.startswith("ERR_")]
-    + ["STAPEL_FORMS_ERRORS", "STAPEL_FORMS_REMEDIATION", "FormsErrorKeysView"]
+    + [
+        "STAPEL_FORMS_ERRORS",
+        "STAPEL_FORMS_REMEDIATION",
+        "ATTRIBUTE_VALIDATION_ERRORS",
+        "FormsErrorKeysView",
+    ]
 )

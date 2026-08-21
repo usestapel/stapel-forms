@@ -135,6 +135,23 @@ def main():
         # (e2e/apps.py). Using a fixed id keeps the run a proof of forms.
         ws_id = "3f8c1a52-0d47-4a1e-9c2b-7e5d6a4b8c10"
 
+        step("field kinds — the builder's dictionary, over real HTTP")
+        # The route the React pair reads instead of mirroring BUILTIN_FORMS
+        # in TypeScript. Proven here rather than only in pytest because the
+        # payload has to survive the real renderer/serializer stack.
+        catalogue = expect(admin.get(f"{API}/field-kinds?workspace_id={ws_id}"),
+                           200, "field kinds").json()
+        kinds = {entry["kind"]: entry for entry in catalogue["kinds"]}
+        check("string" in kinds and "select" in kinds, "built-in kinds are served")
+        check(kinds["string"]["allowed"] is True, "an allowlisted kind is marked allowed")
+        check(any(f["name"] == "multiline" for f in kinds["string"]["fields"]),
+              "string declares the 0.4.6 multiline hint")
+        check(catalogue["config_widgets"]["number"] == ["step"],
+              "the config-widget dictionary rides along")
+        check(stranger.get(f"{API}/field-kinds?workspace_id={ws_id}").status_code
+              in (401, 403),
+              "field kinds refuse a session-less caller")
+
         step("create form")
         form = expect(admin.post(f"{API}/forms", json={
             "workspace_id": ws_id, "title": "Sign up",

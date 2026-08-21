@@ -5,6 +5,42 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/forms/api/v1/field-kinds": {
+      "get": {
+        "operationId": "forms_api_v1_field_kinds_retrieve",
+        "description": "The field kinds a form may be built from, with their config forms.\n\nThe builder is data-driven off stapel-attributes' ``config_form()``\ndeclarations (spec §8) — before this route existed the only way to read\nthem was to mirror them in the client, which is a table that drifts\nsilently. Serving the registry makes the declaration the single source\nof truth again: a type registered through ``EXTRA_TYPES`` shows up in\nthe builder with no client release.\n\nNothing here is per-form, but it is not public either: the catalogue\ntells a reader which kinds a deployment registered, including host types\nwhose slugs are internal vocabulary. It carries the same capability as\nform management (``forms.manage``) — a principal who cannot build a\nform has no use for the builder's dictionary.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Forms"
+        ],
+        "security": [
+          {
+            "JWTCookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldKindsDTO"
+                }
+              }
+            },
+            "description": ""
+          }
+        }
+      }
+    },
     "/forms/api/v1/forms": {
       "get": {
         "operationId": "forms_api_v1_forms_list",
@@ -1044,6 +1080,58 @@
         "required": [
           "schema"
         ]
+      },
+      "FieldKindDTO": {
+        "type": "object",
+        "description": "One field kind the builder may offer, with its config form.\n\n``fields`` is stapel-attributes' own ``config_form()`` declaration,\npassed through verbatim (``FormField.to_dict()`` shape: ``name``,\n``kind``, ``label_key``, optional ``required`` / ``default`` /\n``params``) — this module does not re-shape upstream's contract, so a\nkind gains config fields upstream without a release here.\n\n``registered`` is FALSE for a kind the host allowlisted that the\nattributes registry does not carry. It is still listed, because a\nstored schema may already use it and a builder that silently drops the\nkind would silently drop the field.",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "label_key": {
+            "type": "string"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "registered": {
+            "type": "boolean"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "allowed",
+          "kind",
+          "label_key",
+          "registered"
+        ]
+      },
+      "FieldKindsDTO": {
+        "type": "object",
+        "description": "The whole field-kind catalogue behind the builder.\n\n``config_widgets`` is upstream's ``config_form.FIELD_KINDS``: the\n*widget* vocabulary a declaration's ``kind`` draws from, mapped to the\nparams each widget understands. Named apart from ``kinds`` on purpose —\nforms' own ``FIELD_KINDS`` setting is the feature-type allowlist, and\ntwo different things called the same name is how a builder ends up\nrendering a ``number`` where a ``string`` belongs.",
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldKindDTO"
+            }
+          },
+          "config_widgets": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
       },
       "FormCreate": {
         "type": "object",

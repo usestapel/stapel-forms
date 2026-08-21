@@ -43,6 +43,7 @@ from .presenters import (
     get_form_presenter,
     get_submission_presenter,
     get_version_presenter,
+    present_field_kinds,
     present_public_form,
     present_publish_result,
     present_resend_result,
@@ -50,6 +51,7 @@ from .presenters import (
 )
 from .serializers import (
     DraftSerializer,
+    FieldKindsSerializer,
     FormCreateSerializer,
     FormListQuerySerializer,
     FormPatchSerializer,
@@ -450,6 +452,42 @@ class FormRotateLinkView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms"])
+class FieldKindsView(SerializerSeamMixin, APIView):
+    """The field kinds a form may be built from, with their config forms.
+
+    The builder is data-driven off stapel-attributes' ``config_form()``
+    declarations (spec §8) — before this route existed the only way to read
+    them was to mirror them in the client, which is a table that drifts
+    silently. Serving the registry makes the declaration the single source
+    of truth again: a type registered through ``EXTRA_TYPES`` shows up in
+    the builder with no client release.
+
+    Nothing here is per-form, but it is not public either: the catalogue
+    tells a reader which kinds a deployment registered, including host types
+    whose slugs are internal vocabulary. It carries the same capability as
+    form management (``forms.manage``) — a principal who cannot build a
+    form has no use for the builder's dictionary.
+    """
+
+    permission_classes = [IsNotAnonymousUser]
+    response_serializer_class = FieldKindsSerializer
+
+    @extend_schema(parameters=[_WORKSPACE_PARAM], responses={200: FieldKindsSerializer})
+    @_maps_forms_errors
+    def get(self, request):
+        query = WorkspaceQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        denied = _access_error(request, query.validated_data["workspace_id"], "manage")
+        if denied:
+            return denied
+        return StapelResponse(
+            self.get_response_serializer_class()(
+                present_field_kinds(allowed_kinds=forms_settings.FIELD_KINDS)
+            ).data
+        )
+
+
+@extend_schema(tags=["Forms"])
 class FormVersionListView(SerializerSeamMixin, APIView):
     """The form's published versions, newest first."""
 
@@ -673,6 +711,7 @@ __all__ = [
     "FormPublishView",
     "FormStateView",
     "FormRotateLinkView",
+    "FieldKindsView",
     "FormVersionListView",
     "FormSubmissionListView",
     "SubmissionDetailView",

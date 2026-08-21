@@ -14,6 +14,8 @@ from stapel_core.django.api.presenters import Presenter, PresenterField
 from stapel_core.django.swappable import declare_swap, get_presenter
 
 from .dto import (
+    FieldKindDTO,
+    FieldKindsDTO,
     PublicFormDTO,
     PublishResultDTO,
     ResendResultDTO,
@@ -199,6 +201,59 @@ def present_resend_result(sent: int) -> ResendResultDTO:
     return ResendResultDTO(sent=sent)
 
 
+def present_field_kinds(*, allowed_kinds) -> FieldKindsDTO:
+    """The builder's field-kind catalogue, read from the live registry.
+
+    Read from ``stapel_attributes.config_form.form_declarations()`` on every
+    call rather than snapshotted: the registry is built-ins <- ``EXTRA_TYPES``
+    <- runtime registrations, so a host type registered after import must
+    show up without a restart of anything but the process that registered it.
+
+    Every REGISTERED kind is listed, not just the allowlisted ones — a
+    schema published before a kind left ``STAPEL_FORMS['FIELD_KINDS']`` still
+    has to render, and ``allowed`` is what tells the builder which kinds it
+    may offer for a NEW field. Kinds that declare no config form (upstream's
+    ``convertible_unit``) appear with an empty ``fields`` list, which is the
+    signal to fall back rather than the absence of one.
+    """
+    from stapel_attributes.config_form import FIELD_KINDS, form_declarations
+
+    allowed = set(allowed_kinds or ())
+    declarations = form_declarations()
+
+    kinds = [
+        FieldKindDTO(
+            kind=slug,
+            label_key=declaration.get("label_key") or f"admin.attributes.type.{slug}",
+            allowed=slug in allowed,
+            registered=True,
+            fields=list(declaration.get("fields") or []),
+        )
+        for slug, declaration in declarations.items()
+    ]
+    # An allowlisted kind the registry does not carry is a host
+    # misconfiguration, but the honest answer is to say so rather than to
+    # omit the kind and let the builder infer it never existed.
+    kinds.extend(
+        FieldKindDTO(
+            kind=slug,
+            label_key=f"admin.attributes.type.{slug}",
+            allowed=True,
+            registered=False,
+            fields=[],
+        )
+        for slug in allowed - set(declarations)
+    )
+    kinds.sort(key=lambda entry: entry.kind)
+
+    return FieldKindsDTO(
+        kinds=kinds,
+        config_widgets={
+            widget: list(params) for widget, params in sorted(FIELD_KINDS.items())
+        },
+    )
+
+
 def present_answers(submission) -> Dict[str, Any]:
     """``{slug: value}`` from the stored DAO shapes, headers omitted."""
     answers = submission.answers or {}
@@ -257,5 +312,6 @@ __all__ = [
     "present_submit_result",
     "present_publish_result",
     "present_resend_result",
+    "present_field_kinds",
     "present_answers",
 ]

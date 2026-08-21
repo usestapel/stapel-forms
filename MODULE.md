@@ -67,6 +67,7 @@ Both views carry `TokenPathNoLogMixin` — the handle never reaches an error log
 
 | Route | Method | Capability |
 |---|---|---|
+| `/field-kinds` | GET | `forms.manage` |
 | `/forms` | GET | `forms.view` |
 | `/forms` | POST | `forms.manage` |
 | `/forms/<uuid>` | GET | `forms.view` |
@@ -94,6 +95,58 @@ the same `None`, so in practice an outage currently renders 403. The
 one-file stapel-core change, not a per-module workaround that would
 re-implement the capability call and its cache.
 
+### `GET /field-kinds` — the builder's dictionary
+
+The form builder is data-driven off stapel-attributes' `config_form()`
+declarations, and this route is where it reads them. Before it existed the
+only way to have them client-side was to mirror `BUILTIN_FORMS` in
+TypeScript — a table that drifts silently, and drifts worst on the quirks
+(`hex_color.allowCustom` defaults FALSE where `int`/`float`/`string` default
+TRUE; `header.style` defaults to `h2`, which matches neither option).
+
+```json
+{
+  "kinds": [
+    {
+      "kind": "string",
+      "label_key": "admin.attributes.type.string",
+      "allowed": true,
+      "registered": true,
+      "fields": [
+        {"name": "minLength", "kind": "number", "label_key": "…", "params": {"step": 1}},
+        {"name": "multiline", "kind": "checkbox", "label_key": "…", "default": false}
+      ]
+    }
+  ],
+  "config_widgets": {"number": ["step"], "text": ["placeholder"], "checkbox": []}
+}
+```
+
+- `fields` is upstream's declaration **verbatim** (`FormField.to_dict()`), so
+  a kind gaining a config field upstream needs no release here.
+- Read from the live registry on every call: **built-ins ← `EXTRA_TYPES` ←
+  runtime registrations**. A host type registered through
+  `STAPEL_ATTRIBUTES["EXTRA_TYPES"]` reaches the builder with no release of
+  this module *or* of the React pair.
+- **Every registered kind is listed**, not just the allowlisted ones — a
+  schema published before a kind left `STAPEL_FORMS["FIELD_KINDS"]` still has
+  to render. `allowed` is what says which kinds may be offered for a *new*
+  field.
+- A kind that declares **no** config form (upstream's `convertible_unit`)
+  appears with `"fields": []`; a kind the host allowlisted that the registry
+  does not carry appears with `"registered": false`. Both are listed rather
+  than omitted, because an omission reads as "this kind does not exist" and
+  a builder would silently drop the field.
+- `config_widgets` is upstream's `config_form.FIELD_KINDS`: the *widget*
+  vocabulary a declaration's `kind` draws from. Named apart from `kinds`
+  deliberately — this module's own `FIELD_KINDS` setting is the feature-type
+  allowlist, and two different things under one name is a rendering bug
+  waiting to happen.
+
+`forms.manage`, not `forms.view`: the catalogue names every type a deployment
+registered, host types included, and a principal who cannot build a form has
+no use for the builder's dictionary.
+
 ### Response listing and export paging
 
 Keyset, newest first: `?before=<iso8601>&limit=<n>` (`MAX_PAGE_SIZE` caps it),
@@ -101,6 +154,48 @@ plus `?version=<n>` to restrict to one schema version. The export streams CSV
 and returns its continuation cursor in the **`X-Forms-Next-Before`** response
 header — Z-suffixed, because a bare `+00:00` in a query string decodes to a
 space and the second page would silently 400.
+
+### Error keys — owned vs. surfaced
+
+`docs/errors.json` carries **75** keys: 42 core-owned, 21 owned here, and the
+12 `error.400.feature_*` / `error.400.description_*` keys owned by
+**stapel-attributes**. That last group is not decoration — per-field answer
+validation *is* the attributes pipeline, so `POST /public/<id>/submissions/`
+puts one of those codes at the top level of a per-field refusal (plus the
+whole set under `params.fields[]`). An artifact that omitted them meant every
+frontend bundle generated from it missed exactly the errors a respondent is
+most likely to see, and they rendered as raw keys.
+
+The mechanism is one line in `errors.py`:
+
+```python
+import stapel_attributes.errors  # forces the registration
+```
+
+stapel-attributes is an embedded (non-app) library, so Django's
+`autodiscover_modules("errors")` never reaches it and the keys would
+otherwise enter the registry only as a side effect of whichever serializer
+happened to import first. The same line appears in stapel-listings and
+stapel-categories, which embed the same engine.
+
+**This is a re-export, not a claim.** `register_service_errors` infers the
+owner from the *calling* package, so the keys stay owned by
+`stapel_attributes`; `STAPEL_FORMS_ERRORS` and the `/error-keys/` listing the
+stapel-translate collector reads carry only `error.<status>.forms_*`. Copying
+the English strings into this module's registry instead would have taken on a
+catalogue obligation that is upstream's — `tests/test_contract.py` asserts the
+`owner` field so that mistake goes red.
+
+Consequence, stated rather than hidden: stapel-attributes ships **no**
+`translations/errors.<lang>.json`, so emission prints
+`[warning:unshipped] 'stapel_attributes' owns 12 declared code(s) but ships no
+errors catalog in any language`. The keys are declared and English-covered;
+localizing them is an upstream contribution (§12.6), and until it lands a
+frontend bundle either falls back to English or carries its own strings.
+
+An alternative exists for a host that would rather not rely on the import:
+`settings.STAPEL_ERROR_MODULES = ["stapel_attributes.errors"]`, which
+`generate_error_keys` also honours. It is redundant here and harmless.
 
 ---
 
@@ -154,6 +249,16 @@ they are **camelCase** (`maxLength`, `minLength`, `allowCustom`). A key the
 type does not know is dropped by its dataclass parser, so `max_length` would
 be a length cap that silently does not exist — `publish` refuses those rather
 than shipping a form that looks capped and is not.
+
+**On `FeatureValidationResult.warnings` (stapel-attributes 0.4.6):** the
+engine now reports an unrecognized config key as a non-blocking warning
+instead of dropping it in silence. Nothing here surfaces it, and that is not
+an oversight — `schema.validate_schema` runs the *same* set-difference against
+the type's config dataclass one step earlier and answers
+`400 error.400.forms_invalid_schema`. This module is strictly stricter, so the
+engine never reaches the branch that would populate `warnings` on a publish.
+Should that gate ever soften, the warnings are already on the result object
+and only need a field on the publish envelope.
 
 `meta.logic` is reserved and unused: conditional branching is a v2 fork, and
 reserving the key keeps adding it additive.
@@ -387,6 +492,11 @@ Recorded so they are debts rather than folklore:
    which is what would make the `unavailable` → 503 branch in §3 fire.
 4. **An email-keyed GDPR subject** in stapel-gdpr, which is what would give
    anonymous respondents a self-service erasure channel (§7).
-5. **A `multiline` param on the attributes `string` type**, so a long-text
-   question is a config flag rather than a renderer heuristic over
-   `maxLength`. A type contribution there, never a forms-local field type.
+5. ~~**A `multiline` param on the attributes `string` type**~~ — **landed** in
+   stapel-attributes 0.4.6 (the floor this module now pins), declared in
+   `config_form._string_form()` and served through `GET /field-kinds`.
+6. **`translations/errors.<lang>.json` in stapel-attributes.** It owns 12
+   keys this module's API returns and ships catalogues for none of them, so
+   `make contract` warns `unshipped` on every emission and a localized
+   deployment renders that family in English (§3). The strings exist in the
+   React pair's hand-authored ru/es bundles; upstreaming them is the fix.

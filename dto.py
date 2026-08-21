@@ -60,10 +60,51 @@ class ResendResultDTO:
     sent: int
 
 
+@dataclass
+class FieldKindDTO:
+    """One field kind the builder may offer, with its config form.
+
+    ``fields`` is stapel-attributes' own ``config_form()`` declaration,
+    passed through verbatim (``FormField.to_dict()`` shape: ``name``,
+    ``kind``, ``label_key``, optional ``required`` / ``default`` /
+    ``params``) — this module does not re-shape upstream's contract, so a
+    kind gains config fields upstream without a release here.
+
+    ``registered`` is FALSE for a kind the host allowlisted that the
+    attributes registry does not carry. It is still listed, because a
+    stored schema may already use it and a builder that silently drops the
+    kind would silently drop the field.
+    """
+
+    kind: str
+    label_key: str
+    allowed: bool
+    registered: bool
+    fields: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class FieldKindsDTO:
+    """The whole field-kind catalogue behind the builder.
+
+    ``config_widgets`` is upstream's ``config_form.FIELD_KINDS``: the
+    *widget* vocabulary a declaration's ``kind`` draws from, mapped to the
+    params each widget understands. Named apart from ``kinds`` on purpose —
+    forms' own ``FIELD_KINDS`` setting is the feature-type allowlist, and
+    two different things called the same name is how a builder ends up
+    rendering a ``number`` where a ``string`` belongs.
+    """
+
+    kinds: List[FieldKindDTO] = field(default_factory=list)
+    config_widgets: Dict[str, List[str]] = field(default_factory=dict)
+
+
 __all__ = [
     "PublicFormDTO",
     "SubmitResultDTO",
     "PublishResultDTO",
     "SubmissionPageDTO",
     "ResendResultDTO",
+    "FieldKindDTO",
+    "FieldKindsDTO",
 ]

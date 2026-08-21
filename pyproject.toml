@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-forms"
-version = "0.1.0"
+version = "0.2.0"
 description = "Admin-defined forms, anonymous submissions and response review for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -34,7 +34,14 @@ dependencies = [
     # list of stapel-attributes FeatureDefs, and submissions are validated
     # and normalized by its pipeline. An L1 library, imported directly —
     # not a Django app, nothing to add to INSTALLED_APPS.
-    "stapel-attributes>=0.4.5,<1.0",
+    #
+    # Floor 0.4.6: `StringConfig.multiline` is the textarea-vs-input hint the
+    # `/field-kinds` catalogue publishes and the React pair's `string` widget
+    # reads. On 0.4.5 the key does not exist, so a form authored with it would
+    # be refused by this module's own unknown-config-key gate — a red publish,
+    # not a graceful degrade. 0.4.6 also added `FeatureValidationResult.
+    # warnings` (see MODULE.md §5 on why nothing here surfaces them).
+    "stapel-attributes>=0.4.6,<1.0",
 ]
 
 [project.urls]

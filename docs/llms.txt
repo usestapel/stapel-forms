@@ -1,8 +1,8 @@
-# stapel-forms 0.1.0
+# stapel-forms 0.2.0
 
 Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.
 
-Contract: axes 5 · surface 31 · extension points 4 · operations 17 · error codes 63.
+Contract: axes 5 · surface 31 · extension points 4 · operations 18 · error codes 75.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -134,9 +134,10 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - stapel-notifications (optional) — notify-on-submit and resend request notifications through stapel-core; without a notifications service the rows are still stored and the events still emitted, but nobody is told. The forms.submission_received / forms.submission_resend routing entries must exist there (or in the host's STAPEL_NOTIFICATIONS['TYPES'])
 - stapel-workspaces (optional) — every admin request asks the workspaces.check_capability comm Function (fail-closed, deny-by-default) — stapel-workspaces is the shelf's answerer; any provider of that Function satisfies the contract, and without one the admin surface denies while the public respondent endpoints keep working
 
-## HTTP operations (17) — call by operationId, never by a typed path
+## HTTP operations (18) — call by operationId, never by a typed path
 Paths are relative to `/forms/api/v1/`.
 ### Forms
+- GET /field-kinds — forms_api_v1_field_kinds_retrieve
 - POST /forms — forms_api_v1_forms_create
 - DELETE /forms/{form_id} — forms_api_v1_forms_destroy
 - PUT /forms/{form_id}/draft — forms_api_v1_forms_draft_update
@@ -157,12 +158,24 @@ Paths are relative to `/forms/api/v1/`.
 - POST /submissions/{submission_id}/resend — forms_api_v1_submissions_resend_create
 - GET /submissions/{submission_id} — forms_api_v1_submissions_retrieve
 
-## Error codes (63) — the StapelError envelope
+## Error codes (75) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
 - error.400.captcha_required [400] retry
+- error.400.description_too_long [400] fix_input {max_length}
+- error.400.description_too_short [400] fix_input {min_length}
 - error.400.expected_list [400] fix_input
+- error.400.feature_above_maximum [400] fix_input {feature}
+- error.400.feature_below_minimum [400] fix_input {feature}
+- error.400.feature_invalid_config [400] fix_input {feature}
+- error.400.feature_invalid_format [400] fix_input {feature}
+- error.400.feature_invalid_type [400] fix_input {feature}
+- error.400.feature_mandatory_missing [400] fix_input {feature}
+- error.400.feature_not_allowed [400] fix_input {feature}
+- error.400.feature_not_in_options [400] fix_input {feature}
+- error.400.feature_unknown [400] fix_input {feature}
+- error.400.feature_unknown_type [400] fix_input {feature}
 - error.400.field.blank [400] fix_input {field}
 - error.400.field.does_not_exist [400] fix_input {field}
 - error.400.field.invalid [400] fix_input {field}

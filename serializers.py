@@ -15,6 +15,7 @@ from rest_framework import serializers
 from stapel_core.django.api.serializers import StapelDataclassSerializer
 
 from .dto import (
+    FieldKindsDTO,
     PublicFormDTO,
     PublishResultDTO,
     ResendResultDTO,
@@ -52,6 +53,13 @@ class PublishResultSerializer(StapelDataclassSerializer):
 class ResendResultSerializer(StapelDataclassSerializer):
     class Meta:
         dataclass = ResendResultDTO
+
+
+class FieldKindsSerializer(StapelDataclassSerializer):
+    """The builder's field-kind catalogue (``FieldKindsDTO``)."""
+
+    class Meta:
+        dataclass = FieldKindsDTO
 
 
 # ── Requests ─────────────────────────────────────────────────────────
@@ -132,6 +140,7 @@ __all__ = [
     "SubmitResultSerializer",
     "PublishResultSerializer",
     "ResendResultSerializer",
+    "FieldKindsSerializer",
     "WorkspaceQuerySerializer",
     "FormListQuerySerializer",
     "FormCreateSerializer",

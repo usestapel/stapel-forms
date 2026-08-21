@@ -6,6 +6,91 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-08-21
+
+Additive. Minor (pre-1.0: minor = breaking) because the
+**stapel-attributes floor moves to 0.4.6** — a dependency floor a consumer
+must act on is not a patch, even when nothing in the API changed shape.
+
+Closes the two upstream asks the `@stapel/forms-react` 0.1.0 build filed
+against this module (`tasks/stapel-forms-design.md` §11c deltas 1 and 2).
+
+### Added
+
+- **`GET /forms/api/v1/field-kinds`** (`forms.manage`) — the form builder's
+  dictionary: every registered field kind with its stapel-attributes
+  `config_form()` declaration, passed through verbatim, plus the
+  `config_widgets` vocabulary those declarations draw from. Read from the
+  live registry on each call, so built-ins ← `EXTRA_TYPES` ← runtime
+  registrations all reach the builder with no release of this module or of
+  the React pair.
+
+  Every *registered* kind is listed, not just the allowlisted ones (a schema
+  published before a kind left `FIELD_KINDS` still has to render); `allowed`
+  is what says which kinds may be offered for a new field. A kind with no
+  declared config form appears with an empty `fields` list, and an
+  allowlisted kind the registry does not carry appears with
+  `"registered": false` — both listed rather than omitted, because an
+  omission reads as "this kind does not exist" and a builder would silently
+  drop the field.
+
+  This deletes the pair's `widgets/configForms.ts`, a hand-written
+  TypeScript mirror of `BUILTIN_FORMS` that could drift silently against the
+  upstream defaults it pinned blind.
+
+- **`tests/test_contract.py`** — the part of the contract gate that runs on
+  every interpreter in the CI matrix. `make contract-check` needs the pinned
+  3.12 plus stapel-tools; these tests read the *committed* artifacts and
+  assert the two properties a stale artifact breaks in silence: every
+  mounted route is described in `docs/schema.json`, and every error key the
+  API can return is declared in `docs/errors.json` **under its true owner**.
+
+### Fixed
+
+- **`docs/errors.json` now carries the `error.400.feature_*` family** (63 →
+  75 keys). The submit path returns stapel-attributes' validation codes at
+  the top level of a per-field refusal, but the artifact declared none of
+  them, so frontend bundles generated from it missed exactly the errors a
+  respondent is most likely to see and rendered them as raw keys.
+
+  Fixed by the fleet's existing line — `import stapel_attributes.errors` in
+  this module's `errors.py`, the same forcing import stapel-listings and
+  stapel-categories carry, because an embedded non-app library is never
+  reached by `autodiscover_modules("errors")`. It is a **re-export, not a
+  claim**: `register_service_errors` infers ownership from the calling
+  package, so the keys stay owned (and translated) by stapel-attributes,
+  and `STAPEL_FORMS_ERRORS` / the `/error-keys/` listing still carry only
+  `error.<status>.forms_*`. `tests/test_contract.py` asserts the `owner`
+  field so a future "fix" that copies the strings in — taking on a
+  catalogue obligation that is upstream's — goes red.
+
+  Known consequence: stapel-attributes ships no `translations/errors.<lang>.
+  json`, so emission now prints `[warning:unshipped]` for its 12 keys.
+  Declared and English-covered; localizing them is upstream work
+  (MODULE.md §12.6).
+
+### Changed
+
+- **`stapel-attributes>=0.4.6`** (was `>=0.4.5`). `StringConfig.multiline` —
+  the textarea-vs-input hint the pair's `string` widget reads — does not
+  exist on 0.4.5, so a form authored with it would be refused by this
+  module's own unknown-config-key gate rather than degrading gracefully.
+
+  0.4.6 also added `FeatureValidationResult.warnings` for unrecognized
+  config keys. **Nothing here surfaces them, deliberately:**
+  `schema.validate_schema` runs the same set-difference one step earlier and
+  answers `400 error.400.forms_invalid_schema`, so this module is strictly
+  stricter and the engine never reaches the branch that populates
+  `warnings`. Documented in MODULE.md §5 rather than wired to a field that
+  could never be non-empty.
+
+- Contract artifacts regenerated: **14 paths** (was 13), **75 error keys**
+  (was 63). `docs/capabilities.json`, `docs/llms.txt` and `README.md`
+  re-emitted with them.
+
+- `e2e/run_e2e.py` drives the new route over real HTTP — the catalogue's
+  shape and its refusal of a session-less caller.
+
 ## [0.1.0] — 2026-08-21
 
 First release. Admin-defined forms, anonymous responses, response review.
