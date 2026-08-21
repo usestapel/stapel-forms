@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "form.submission.received",
+  "description": "A form was answered. Ids only: respondent answers are PII and never ride the durable bus — a consumer that needs content reads it under forms.responses.view.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["form_id", "form_version", "submission_id", "workspace_id"],
+  "properties": {
+    "form_id": {"type": "string"},
+    "form_version": {"type": "integer"},
+    "submission_id": {"type": "string"},
+    "workspace_id": {"type": "string"}
+  }
+}

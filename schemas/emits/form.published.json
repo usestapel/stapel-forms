@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "form.published",
+  "description": "A new immutable schema version of a form was published and became the active one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["form_id", "workspace_id", "version"],
+  "properties": {
+    "form_id": {"type": "string"},
+    "workspace_id": {"type": "string"},
+    "version": {"type": "integer"}
+  }
+}
