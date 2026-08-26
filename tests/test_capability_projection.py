@@ -270,51 +270,71 @@ def test_the_public_surface_carries_no_capability():
                 )
 
 
-def test_every_capability_publishes_what_the_gate_cannot_see():
+def test_every_capability_publishes_how_a_refusal_reads():
+    """The `behavior` line says what a 403 means — and says it truthfully.
+
+    Until 0.4.0 it carried a caveat: a 403 meant EITHER "not granted" OR
+    "no verdict was reached", because core's ``require_capability``
+    collapsed an outage into a denial and the ``unavailable`` -> 503 branch
+    could not fire. Core 0.47.0 fixed that, so the caveat is not merely
+    stale, it is FALSE — a client that still codes around it treats a real
+    permission decision as a maybe. This asserts both halves: the line
+    still tells a consumer how to read a refusal, and it no longer tells
+    them the refusal might be an outage.
+    """
     doc = json.loads((DOCS / "capabilities.json").read_text())
     for entry in doc["capabilities"]:
         behavior = entry["gates"].get("behavior", "")
-        assert "403" in behavior, (
-            f"{entry['key']} does not tell a consumer that a refusal from these "
-            "routes conflates 'not granted' with 'workspaces unreachable'. A "
-            "client that reads 403 as a durable verdict caches an outage as a "
-            "permission decision."
+        assert "403" in behavior and "503" in behavior, (
+            f"{entry['key']} does not tell a consumer how a refusal from these "
+            "routes reads. Both statuses belong here: 403 is the verdict, 503 "
+            "is the absence of one."
         )
+        for dead in ("EITHER", "0.45.0", "cannot fire", "collapses outage"):
+            assert dead not in behavior, (
+                f"{entry['key']} still carries the pre-0.4.0 outage caveat "
+                f"({dead!r}). stapel-core >= 0.47.0 distinguishes an outage "
+                "from a denial, so a contract that says a 403 might mean 'no "
+                "verdict' is publishing an untruth — which is worse than the "
+                "honest caveat it replaced."
+            )
 
 
-# ── 4. The upstream limitation, pinned so it cannot rot ──────────────
+# ── 4. Outage and denial, pinned APART ───────────────────────────────
+#
+# These two are a pair and only mean anything together. Each drives the
+# SAME route with the SAME principal and differs in exactly one thing —
+# whether the workspaces service answered — and they must produce different
+# statuses. Keeping only the 503 half would leave "the gate refuses
+# everything with 503" passing; keeping only the 403 half is where this
+# module was until 0.4.0. What is under test is the DISTINCTION.
 
 
-def test_a_workspaces_outage_still_renders_403_not_503(
+def test_a_workspaces_outage_renders_503_not_403(
     api_client, user, workspace_id, grant_capabilities, published_form,
     one_submission, monkeypatch,
 ):
-    """Tripwire on the debt in MODULE.md §3 / §12.3.
+    """No verdict is not a denial (stapel-core >= 0.47.0).
 
-    ``authz.authorize`` has a live ``unavailable`` branch that answers 503,
-    and it CANNOT fire: stapel-core's ``require_capability`` returns ``None``
-    on a ``FunctionCallError`` rather than raising
-    ``WorkspaceLookupUnavailable`` (verified against core 0.45.0). So an
-    outage of the workspaces service is indistinguishable from a denial, and
-    the capability projection says so in every entry's ``gates.behavior``.
+    The grant is real, so the ONLY reason this request can be refused is the
+    outage — without it the route would refuse for the ordinary reason and
+    the test would prove nothing about outages.
 
-    This test asserts the CURRENT, wrong-shaped behaviour on purpose. When
-    the one-file core change lands, this goes red — which is the signal to
-    flip the assertion, drop the caveat from
-    ``docs/capabilities.meta.json`` and close §12.3, instead of leaving a
-    stale warning in the contract that clients keep coding around.
+    Patched at the comm call, not at ``require_capability``: the behaviour
+    under test is core's own except-branch turning a ``FunctionCallError``
+    into ``WorkspaceLookupUnavailable``, so stubbing the gate itself would
+    assert nothing about the thing that actually decides.
+
+    This replaces ``test_a_workspaces_outage_still_renders_403_not_503``,
+    which pinned the defect on purpose so that the caveat in every
+    ``capabilities[].gates.behavior`` would die with it rather than outlive
+    it. It went red on core 0.47.0, and this is what it turned into.
     """
     from stapel_core.comm.exceptions import FunctionCallError
 
     def _unreachable(*args, **kwargs):
         raise FunctionCallError("workspaces service unreachable")
 
-    # Patched at the comm call, not at require_capability: the behaviour under
-    # test is core's own except-branch, so stubbing the gate itself would
-    # assert nothing about the thing that actually decides.
-    # The grant is real, so the ONLY reason this request can be refused is
-    # the outage — without it the route would 403 for the ordinary reason and
-    # the test would prove nothing.
     grant_capabilities(workspace_id, user.pk, "forms.responses.manage")
     monkeypatch.setattr("stapel_core.comm.call", _unreachable)
 
@@ -322,12 +342,38 @@ def test_a_workspaces_outage_still_renders_403_not_503(
     resp = api_client.delete(
         f"{BASE}/submissions/{one_submission.id}?workspace_id={workspace_id}"
     )
-    assert resp.status_code == 403, (
-        "stapel-core now distinguishes a workspaces outage from a denial. "
-        "Flip this assertion to 503, delete the outage caveat from the "
-        "`behavior` lines in docs/capabilities.meta.json, and close "
-        "MODULE.md §12.3."
+    assert resp.status_code == 503, (
+        "a workspaces outage rendered as something other than 503. If this is "
+        "a 403, the gate is fabricating a verdict out of a non-answer and the "
+        "capability projection is publishing an untruth."
     )
+    assert resp.json()["localizable_error"] == "error.503.forms_workspaces_unavailable"
+
+
+def test_a_genuine_denial_renders_403_not_503(
+    api_client, user, workspace_id, grant_capabilities, published_form,
+    one_submission,
+):
+    """The other half of the pair: a verdict of "no" is still a 403.
+
+    Same route, same principal, workspaces answering normally — and holding
+    every OTHER forms capability, so the refusal is specifically about the
+    one this route asks for rather than about having no grants at all.
+    """
+    grant_capabilities(
+        workspace_id, user.pk,
+        "forms.view", "forms.manage", "forms.responses.view",
+    )
+
+    api_client.force_authenticate(user=user)
+    resp = api_client.delete(
+        f"{BASE}/submissions/{one_submission.id}?workspace_id={workspace_id}"
+    )
+    assert resp.status_code == 403, (
+        "a rendered denial must stay a 403. A gate that answers 503 to a real "
+        "refusal tells a client to retry forever."
+    )
+    assert resp.json()["localizable_error"] == "error.403.forms_forbidden"
 
 
 def test_responses_manage_is_projected_on_exactly_its_two_operations():

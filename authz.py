@@ -11,13 +11,16 @@ dropped.
 answer 503, never 403 ("a routing 404 is not a verdict", stapel-core
 workspaces client canon).
 
-Known limitation, stated rather than papered over: on stapel-core 0.26
-``require_capability`` collapses "denied" and "peer unavailable" into the
-same ``None`` — it logs the outage and returns, so the branch below can
-only fire if a future core raises. Until that core PR lands, a workspaces
-outage renders 403 here, the same as in stapel-docs. The branch stays live
-because the fix belongs in core, not in a per-module workaround that would
-re-implement the capability call and its cache.
+Since **stapel-core 0.47.0** that branch actually fires. Core's
+``require_capability`` now has three answers rather than two — a membership,
+``None`` (the service said no; a verdict), or
+``WorkspaceLookupUnavailable`` (the question could not be asked) — so an
+outage and a denial are no longer the same byte on the wire. Until then it
+logged a ``FunctionCallError`` and returned ``None``, the branch below
+could not fire, and this module published the conflation as a caveat in
+every ``capabilities[].gates.behavior`` because it could not be fixed from
+outside. The caveat is gone as of 0.4.0; the mechanism that replaced it is
+the floor.
 
 The :class:`Principal` form is fixed on day 1 so anonymous-link style
 grants later are an additive branch, not a rewrite: ``user_id=None`` means
@@ -104,8 +107,15 @@ def authorize(*, workspace_id, principal: Principal, action: str) -> str:
         )
 
         try:
+            # `strict=True` is core's default since 0.47.0 and is passed
+            # explicitly anyway: this is an authorization question, so a
+            # non-answer must never be reported as a refusal. Stated at the
+            # call site rather than inherited, because a default is what a
+            # caller who never thought about it gets — and on a core older
+            # than the floor the keyword is a loud TypeError rather than a
+            # silent return to 403-on-outage.
             membership = require_capability(
-                workspace_id, principal.user_id, capability
+                workspace_id, principal.user_id, capability, strict=True
             )
         except WorkspaceLookupUnavailable:
             return UNAVAILABLE

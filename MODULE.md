@@ -93,18 +93,24 @@ contract publishes — see §4.
 
 `deny` → 403, `unavailable` → 503, never 403-on-outage.
 
-**Known limitation, stated rather than papered over:** re-verified against
-stapel-core **0.45.0** — `require_capability` still collapses "denied" and
-"workspaces peer unreachable" into the same `None` (a `FunctionCallError` is
-logged and returns `None`; `WorkspaceLookupUnavailable` is never raised out
-of it), so in practice an outage renders 403. The `unavailable` branch in
-`authz.py` is live and correct; making it fire is a one-file stapel-core
-change, not a per-module workaround that would re-implement the capability
-call and its cache. Because a client cannot tell the two apart, every entry
-of the capability projection carries the caveat in its
-`gates.behavior`, and `tests/test_capability_projection.py` pins the current
-behaviour so that the day core fixes it, the stale warning in the contract
-goes red instead of quietly outliving the defect.
+**And since 0.4.0 that is literally true.** The floor is stapel-core
+**0.47.0**, where `require_capability` has three answers rather than two: a
+membership, `None` (the workspaces service was asked and said no — a
+verdict), and `WorkspaceLookupUnavailable` (the question could not be asked
+at all). `authz.authorize` maps the third to `unavailable`, so a workspaces
+outage renders **503 `error.503.forms_workspaces_unavailable`** and a denial
+renders **403 `error.403.forms_forbidden`** — different statuses, different
+error keys, a client can tell them apart.
+
+Until then it could not. On core ≤ 0.46 a `FunctionCallError` was logged and
+`None` returned, so the `unavailable` branch — live and correct the whole
+time — could never fire, and 0.3.0 published that conflation as a caveat in
+every `capabilities[].gates.behavior` because it could not be fixed from
+outside this module. **The caveat is gone**, not softened: a contract that
+still said "a 403 might mean no verdict" would now be publishing an untruth,
+which is worse than the honest warning it replaced. What killed it was
+`test_a_workspaces_outage_still_renders_403_not_503`, which pinned the defect
+on purpose, went red on 0.47.0, and was replaced by the pair in §12.3.
 
 ### `GET /field-kinds` — the builder's dictionary
 
@@ -272,8 +278,11 @@ route twice — granted only its published capability (must not refuse) and
 granted every other capability (must refuse) — so the contract is checked
 behaviourally as well as structurally.
 
-**What the capability cannot tell you:** whether a 403 means "not granted" or
-"the workspaces service is unreachable". See §3.
+**How a refusal reads:** a 403 from a gated route is a *verdict* — the
+workspaces service was asked and answered that this principal does not hold
+the capability. A workspaces outage is a distinct 503. Through 0.3.0 the two
+were the same byte on the wire and every `gates.behavior` said so; the floor
+on core 0.47.0 is what let 0.4.0 delete that caveat. See §3.
 
 ### Granting them
 
@@ -563,14 +572,34 @@ Recorded so they are debts rather than folklore:
 2. **`NOTIFICATION_ROUTING` entries** for the two types in §9. The telegram
    channel itself already landed (notifications 0.13.0 / core 0.31.0), so
    this is the last piece: two dict entries and their email templates.
-3. **`require_capability` distinguishing outage from denial** in stapel-core,
-   which is what would make the `unavailable` → 503 branch in §3 fire.
-   Re-verified still open on core 0.45.0. It is now the ONE thing the
-   capability projection has to publish a caveat about, so closing it also
-   removes a line from every `capabilities[].gates.behavior`;
-   `tests/test_capability_projection.py::test_a_workspaces_outage_still_renders_403_not_503`
-   goes red the moment it lands, which is how the caveat gets deleted
-   instead of outliving the defect.
+3. ~~**`require_capability` distinguishing outage from denial** in
+   stapel-core~~ — **landed** in stapel-core **0.47.0** (the floor this
+   module now pins). `require_capability` raises
+   `WorkspaceLookupUnavailable` when no verdict could be reached instead of
+   returning `None`, so the `unavailable` → 503 branch in §3 fires and the
+   caveat is deleted from every `capabilities[].gates.behavior`.
+
+   Worth recording as a worked example of the mechanism, because it is the
+   part that is easy to skip: the debt was not carried in prose. It was
+   carried in the *machine-readable contract* (so a consumer could not miss
+   it) and pinned by a test asserting the wrong-shaped behaviour on purpose
+   — `test_a_workspaces_outage_still_renders_403_not_503` — precisely so the
+   caveat would go red with the fix rather than outlive it. It did, on the
+   first run against 0.47.0. It is now two tests that pin the outcomes
+   **apart**, which is the property that actually matters and which neither
+   one alone establishes:
+
+   - `test_a_workspaces_outage_renders_503_not_403` — same route, real grant,
+     `stapel_core.comm.call` raising: 503 `error.503.forms_workspaces_unavailable`;
+   - `test_a_genuine_denial_renders_403_not_503` — same route, workspaces
+     answering normally, every forms capability granted *except* the one the
+     route asks for: 403 `error.403.forms_forbidden`.
+
+   Note the direction of the asymmetry core chose, and do not "fix" it here:
+   `require_capability` and `require_role` default to `strict=True` because
+   whatever they return goes straight into a 403; `get_membership` keeps
+   `strict=False` because it is a reader with legitimate non-authorization
+   callers. `authz.authorize` passes `strict=True` explicitly anyway.
 4. **An email-keyed GDPR subject** in stapel-gdpr, which is what would give
    anonymous respondents a self-service erasure channel (§7).
 5. ~~**A `multiline` param on the attributes `string` type**~~ — **landed** in

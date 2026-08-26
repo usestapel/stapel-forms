@@ -6,6 +6,114 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-26
+
+**The caveat is gone from the contract.** No route, status code or payload
+*shape* changed — but the **meaning** of one status did, and it is published
+in a machine-readable artifact that consumers gate on, so this is a minor
+(pre-1.0: minor = breaking) on two counts: the **stapel-core floor moves to
+0.47.0**, and every `capabilities[].gates.behavior` in
+`docs/capabilities.json` now says something different about what a 403 means.
+
+0.3.0 shipped an honest untruth-in-waiting. It could not fix the underlying
+defect from outside this module, so it published the defect *inside* the
+contract instead: every capability entry warned that a 403 meant EITHER "not
+granted" OR "no verdict was reached", because stapel-core's
+`require_capability` logged a `FunctionCallError` and returned `None`, the
+`unavailable` → 503 branch in `authz.py` could therefore never fire, and a
+workspaces outage was indistinguishable from a denial. It pinned that with
+`test_a_workspaces_outage_still_renders_403_not_503` — a test asserting the
+wrong-shaped behaviour on purpose — explicitly so the caveat would die with
+the defect rather than outlive it.
+
+stapel-core **0.47.0** fixed the defect. That test went red on the first run
+against it. This release is the death it was written for.
+
+### Changed
+
+- **A workspaces outage now renders 503, not 403.** Core 0.47.0's
+  `require_capability` has three answers instead of two — a membership,
+  `None` ("the service was asked and said no": a verdict), and
+  `WorkspaceLookupUnavailable` ("the question could not be asked") — so the
+  `unavailable` branch `authz.authorize` has carried since day 1 fires.
+  A refusal and an outage are now different statuses with different error
+  keys: `403 error.403.forms_forbidden` vs
+  `503 error.503.forms_workspaces_unavailable`.
+
+  **What a consumer must do:** stop treating a 403 from a gated route as
+  possibly-an-outage. It is a permission decision and may be cached as one.
+  A 503 is "ask again", and a client that retried through 403s will now see
+  the retry-worthy case labelled as such.
+
+- **The `gates.behavior` line in every capability entry is rewritten.**
+  Before: *"a 403 from these routes means EITHER the capability is not
+  granted OR the workspaces service rendered no verdict … the 503 branch in
+  stapel_forms.authz cannot fire."* After: *"A 403 from them is a VERDICT …
+  a workspaces outage is a separate answer with a separate status — 503
+  `error.503.forms_workspaces_unavailable` … the two are no longer the same
+  byte on the wire."* Regenerated into `docs/capabilities.json` from
+  `docs/capabilities.meta.json`.
+
+  Deleted rather than softened, deliberately. A stale caveat here would not
+  be merely out of date, it would be **false** — it would tell a client that
+  a real permission decision might be an outage, and clients code around
+  what the contract says. The whole point of publishing the limitation
+  machine-readably in 0.3.0 was that it would be removable, and this is the
+  removal.
+
+- **Floor: `stapel-core>=0.47.0`** (was `>=0.45.0`). Not a courtesy bump:
+  0.4.0's contract *asserts* that 403 and 503 are distinguishable, and on an
+  older core they are not, so a deployment reading this artifact against
+  core 0.46 would be told something untrue about its own behaviour.
+  `authz.authorize` also passes `strict=True` explicitly — a keyword that
+  does not exist below 0.47.0 — so the skew is a `TypeError` on the first
+  gated request rather than a silent return to 403-on-outage.
+
+  Note the asymmetry in core, documented there rather than accidental, and
+  left alone here: `require_capability` and `require_role` default to
+  `strict=True` (whatever they return goes straight into a 403), while
+  `get_membership` keeps `strict=False` because it is a reader with
+  legitimate non-authorization callers. This module calls only
+  `require_capability`, and only from `authz.authorize`.
+
+- **`test_a_workspaces_outage_still_renders_403_not_503` is replaced by two
+  tests that pin the outcomes apart**, which is the property that matters
+  and which neither one alone establishes (a gate that answered 503 to
+  everything would satisfy the first):
+
+  - `test_a_workspaces_outage_renders_503_not_403` — `DELETE /submissions/<id>`,
+    a **real** grant for `forms.responses.manage` so the outage is the only
+    possible cause of a refusal, with `stapel_core.comm.call` patched to
+    raise. Patched at the comm call rather than at `require_capability`,
+    because core's own except-branch is the thing under test.
+  - `test_a_genuine_denial_renders_403_not_503` — the same route with
+    workspaces answering normally and every *other* forms capability
+    granted, so the 403 is specifically about the string this route asks
+    for.
+
+  `test_every_capability_publishes_what_the_gate_cannot_see` became
+  `test_every_capability_publishes_how_a_refusal_reads`: it now asserts the
+  `behavior` line names **both** statuses and carries none of the retired
+  caveat's phrases, so the untruth cannot be reintroduced by a future edit.
+
+- MODULE.md §3 and §4 say plainly that a 403 is a verdict; §12.3 is closed
+  and kept as the worked example of the mechanism — debt published in the
+  contract, pinned by a test that asserts the defect, deleted when the test
+  goes red.
+
+### Not changed, and why
+
+- **`docs/schema.json` still emits `info.version: "0.0.0"`** — the
+  `stapel-api-lint` **SCHEMA001** reported in 0.3.0 stays open **on
+  purpose**. It is not a missing emitter setting: `SPECTACULAR_SETTINGS` is
+  deliberately unset in `_codegen_settings.py` because drf-spectacular
+  freezes its settings singleton at import time, which is exactly the state
+  the monolith aggregate emits under, and every one of the 24 sibling
+  libraries in the fleet emits `0.0.0` for the same reason. Setting it here
+  alone would trade a fleet-wide lint finding for a fleet-wide byte-identity
+  divergence. Closing it is one change to the shared harness convention, not
+  a line in this module.
+
 ## [0.3.0] — 2026-08-26
 
 Additive at the HTTP layer — no route, status code or payload changes — but

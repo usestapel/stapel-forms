@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-forms"
-version = "0.3.0"
+version = "0.4.0"
 description = "Admin-defined forms, anonymous submissions and response review for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,17 +23,24 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # Floor 0.45.0: the views here derive from the canonical
-    # `stapel_core.django.api.views.StapelAPIView` (0.37.0) instead of the
-    # local SerializerSeamMixin copy this module carried until 0.3.0, and
-    # the capability projection subclasses
-    # `stapel_core.django.openapi.schemas.PermissionAwareAutoSchema`. Both
-    # are hard imports at module load, so an older core is an ImportError
-    # on boot, not a degraded feature. 0.31.0 remains the reason the resend
-    # path can address a telegram chat directly
-    # (`request_notification(telegram_chat_id=...)`), and 0.26 supplied
-    # docs/errors.json's `owner` field that the drift gate requires.
-    "stapel-core>=0.45.0,<1.0",
+    # Floor 0.47.0: `require_capability` gained its third answer —
+    # `WorkspaceLookupUnavailable` for "the question could not be asked",
+    # distinct from `None` for "the service said no" — which is what makes
+    # the `unavailable` -> 503 branch in `authz.authorize` fire. On 0.45/0.46
+    # it could not, so a workspaces outage rendered 403 and this module had
+    # to publish that conflation as a caveat inside its own contract. The
+    # floor is what deletes the caveat: a consumer that reads
+    # `capabilities[].gates.behavior` from 0.4.0 and runs an older core would
+    # be told 403 means "not granted" while an outage says exactly that.
+    # `authz` also passes `strict=True` explicitly, a keyword that does not
+    # exist below 0.47.0, so the skew is a TypeError rather than a silent
+    # untruth. 0.45.0 remains the reason the views derive from the canonical
+    # `stapel_core.django.api.views.StapelAPIView` (0.37.0) and the capability
+    # projection subclasses `PermissionAwareAutoSchema` — both hard imports at
+    # module load. 0.31.0 remains the reason the resend path can address a
+    # telegram chat directly (`request_notification(telegram_chat_id=...)`),
+    # and 0.26 supplied docs/errors.json's `owner` field the drift gate needs.
+    "stapel-core>=0.47.0,<1.0",
     # The one extra runtime dependency (spec §9): the schema of a form IS a
     # list of stapel-attributes FeatureDefs, and submissions are validated
     # and normalized by its pipeline. An L1 library, imported directly —
