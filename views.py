@@ -21,17 +21,19 @@ from __future__ import annotations
 
 import functools
 
+from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions
 from rest_framework.throttling import ScopedRateThrottle
-from rest_framework.views import APIView
 from stapel_core.django.api.errors import StapelErrorResponse, StapelResponse
 from stapel_core.django.api.permissions import ANONYMOUS_ALLOWED, IsNotAnonymousUser
+from stapel_core.django.api.views import StapelAPIView
 from stapel_core.django.captcha import captcha_protected
+from stapel_core.django.openapi.schemas import PermissionAwareAutoSchema
 
 from . import services
-from .authz import DENY, UNAVAILABLE, Principal, authorize
+from .authz import DENY, UNAVAILABLE, Principal, authorize, capability_for
 from .conf import forms_settings
 from .errors import (
     ERR_403_FORBIDDEN,
@@ -68,24 +70,6 @@ from .serializers import (
     SubmitSerializer,
     WorkspaceQuerySerializer,
 )
-
-
-class SerializerSeamMixin:
-    """Overridable serializer seam for every stapel-forms APIView.
-
-    Host projects swap the request/response serializer of any view by
-    subclassing and setting ``request_serializer_class`` /
-    ``response_serializer_class`` — no need to rewrite the method bodies.
-    """
-
-    request_serializer_class = None
-    response_serializer_class = None
-
-    def get_request_serializer_class(self):
-        return self.request_serializer_class
-
-    def get_response_serializer_class(self):
-        return self.response_serializer_class
 
 
 class TokenPathNoLogMixin:
@@ -149,17 +133,125 @@ def _maps_forms_errors(method):
     return wrapper
 
 
-def _access_error(request, workspace_id, *actions):
-    """authorize() each required action; an error response or None.
-    deny -> 403, unavailable -> 503 (never 403-on-outage)."""
+#: Attribute the :func:`gated` decorator stamps on a handler. Read by the
+#: enforcement path (``_access_error``) and by the schema projection
+#: (:class:`CapabilityAwareAutoSchema`) — one attribute, two readers, so
+#: the capability a client is told about is the capability the endpoint
+#: asks the workspaces service for. There is no second place to state it.
+GATE_ATTR = "forms_action"
+
+
+def gated(action):
+    """Declare AND enforce the workspace action one handler requires.
+
+    ``@gated("responses.manage")`` is the *only* way an admin handler names
+    its action. The decorator resolves the action to its capability at
+    import time (an unknown action is a boot-time ``ValueError``, never a
+    silently ungated route), stashes it on the request for the gate to read,
+    and publishes it on the function object for the contract emitters.
+
+    The point of routing both through one attribute is drift: a capability
+    that a deployment can read but an endpoint does not honour is worse than
+    no capability, because a UI trusts it and offers a control that leads to
+    a 403. Here the projection cannot say ``forms.responses.manage`` unless
+    ``authorize()`` will be asked for exactly that string on that request.
+    """
+    capability = capability_for(action)
+
+    def decorate(method):
+        @functools.wraps(method)
+        def wrapper(self, request, *args, **kwargs):
+            setattr(request, GATE_ATTR, action)
+            return method(self, request, *args, **kwargs)
+
+        setattr(wrapper, GATE_ATTR, action)
+        wrapper.forms_capability = capability
+        return wrapper
+
+    return decorate
+
+
+def _access_error(request, workspace_id):
+    """authorize() the action the handler declared; an error response or None.
+
+    deny -> 403, unavailable -> 503 (never 403-on-outage).
+
+    The action is read from the request rather than passed in, so a gated
+    handler cannot check one action while advertising another. A handler
+    that reaches here without :func:`gated` has declared nothing, which is
+    a bug in the view and is refused loudly instead of defaulting to some
+    action — a default here would be the ungated route this whole seam
+    exists to make impossible.
+    """
+    action = getattr(request, GATE_ATTR, None)
+    if action is None:
+        raise ImproperlyConfigured(
+            "stapel-forms: an admin handler called _access_error() without "
+            "@gated(...) — it declares no action, so nothing can be "
+            "authorized or projected for it."
+        )
     principal = Principal.from_request(request)
-    for action in actions:
-        verdict = authorize(workspace_id=workspace_id, principal=principal, action=action)
-        if verdict == DENY:
-            return StapelErrorResponse(403, ERR_403_FORBIDDEN)
-        if verdict == UNAVAILABLE:
-            return StapelErrorResponse(503, ERR_503_WORKSPACES)
+    verdict = authorize(workspace_id=workspace_id, principal=principal, action=action)
+    if verdict == DENY:
+        return StapelErrorResponse(403, ERR_403_FORBIDDEN)
+    if verdict == UNAVAILABLE:
+        return StapelErrorResponse(503, ERR_503_WORKSPACES)
     return None
+
+
+class CapabilityAwareAutoSchema(PermissionAwareAutoSchema):
+    """Project each handler's declared capability into the OpenAPI contract.
+
+    Core's ``PermissionAwareAutoSchema`` documents the *permission classes*
+    of a view, which for this module's whole admin surface is the same
+    ``IsNotAnonymousUser`` — true, and useless to a client deciding whether
+    to render a delete button. The capability is what answers that, and it
+    is per METHOD (``GET /submissions/<id>`` is ``forms.responses.view``,
+    ``DELETE`` on the same path is ``forms.responses.manage``), which a
+    class-level permission list structurally cannot express.
+
+    Two projections, both read off :data:`GATE_ATTR`:
+
+    * ``x-stapel-capability`` — the machine one. ``docs/capabilities.json``
+      is derived from it, and a generated client can gate on it.
+    * a ``**Capability:**`` line in the description — the human one, for
+      whoever is reading the rendered docs.
+
+    What it CANNOT see, stated because a gate that silently sees nothing is
+    the defect this module has already paid for once: it only sees handlers
+    decorated with :func:`gated`. An admin handler that authorizes some
+    other way — inline ``authorize()``, a permission class of its own —
+    emits no capability and reads to a client as ungated. That is why
+    ``_access_error`` refuses an undeclared action outright and why
+    ``tests/test_capability_projection.py`` walks the URLconf and fails on
+    any admin handler this schema would leave blank.
+    """
+
+    def get_operation(self, path, path_regex, path_prefix, method, registry):
+        operation = super().get_operation(path, path_regex, path_prefix, method, registry)
+        if operation is None:
+            return None
+        handler = getattr(self.view, method.lower(), None)
+        action = getattr(handler, GATE_ATTR, None)
+        if action is None:
+            return operation
+        capability = capability_for(action)
+        operation["x-stapel-capability"] = capability
+        line = f"\n\n**Capability:** `{capability}`"
+        operation["description"] = (operation.get("description") or "") + line
+        return operation
+
+
+class AdminAPIView(StapelAPIView):
+    """Base of every admin (workspace-scoped, capability-gated) view here.
+
+    Carries the capability-projecting schema so that declaring the gate on
+    a handler is all a new admin route ever has to do — the contract, the
+    rendered docs and the enforcement then follow from that one decorator.
+    """
+
+    schema = CapabilityAwareAutoSchema()
+    permission_classes = [IsNotAnonymousUser]
 
 
 def _acting_user(request):
@@ -190,7 +282,7 @@ _WORKSPACE_PARAM = OpenApiParameter(
 
 
 @extend_schema(tags=["Forms / public"])
-class PublicFormView(TokenPathNoLogMixin, SerializerSeamMixin, APIView):
+class PublicFormView(TokenPathNoLogMixin, StapelAPIView):
     """Fetch a form's active schema by its public handle."""
 
     permission_classes = [permissions.AllowAny]
@@ -209,7 +301,7 @@ class PublicFormView(TokenPathNoLogMixin, SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms / public"])
-class PublicSubmitView(TokenPathNoLogMixin, SerializerSeamMixin, APIView):
+class PublicSubmitView(TokenPathNoLogMixin, StapelAPIView):
     """Answer a form. The only public write in this module."""
 
     permission_classes = [permissions.AllowAny]
@@ -259,10 +351,9 @@ class PublicSubmitView(TokenPathNoLogMixin, SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms"])
-class FormListCreateView(SerializerSeamMixin, APIView):
+class FormListCreateView(AdminAPIView):
     """List the workspace's forms, or create one."""
 
-    permission_classes = [IsNotAnonymousUser]
     request_serializer_class = FormCreateSerializer
     response_serializer_class = FormSerializer
 
@@ -276,11 +367,12 @@ class FormListCreateView(SerializerSeamMixin, APIView):
         responses={200: FormSerializer(many=True)},
     )
     @_maps_forms_errors
+    @gated("view")
     def get(self, request):
         query = FormListQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         workspace_id = query.validated_data["workspace_id"]
-        denied = _access_error(request, workspace_id, "view")
+        denied = _access_error(request, workspace_id)
         if denied:
             return denied
         rows = services.list_forms(workspace_id, state=query.validated_data.get("state"))
@@ -293,11 +385,12 @@ class FormListCreateView(SerializerSeamMixin, APIView):
 
     @extend_schema(request=FormCreateSerializer, responses={201: FormSerializer})
     @_maps_forms_errors
+    @gated("manage")
     def post(self, request):
         body = self.get_request_serializer_class()(data=request.data)
         body.is_valid(raise_exception=True)
         workspace_id = body.validated_data["workspace_id"]
-        denied = _access_error(request, workspace_id, "manage")
+        denied = _access_error(request, workspace_id)
         if denied:
             return denied
         form = services.create_form(
@@ -314,17 +407,17 @@ class FormListCreateView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms"])
-class FormDetailView(SerializerSeamMixin, APIView):
+class FormDetailView(AdminAPIView):
     """Read, rename or soft-delete one form."""
 
-    permission_classes = [IsNotAnonymousUser]
     request_serializer_class = FormPatchSerializer
     response_serializer_class = FormSerializer
 
     @extend_schema(parameters=[_WORKSPACE_PARAM], responses={200: FormSerializer})
     @_maps_forms_errors
+    @gated("view")
     def get(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "view")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         return StapelResponse(
@@ -337,8 +430,9 @@ class FormDetailView(SerializerSeamMixin, APIView):
         responses={200: FormSerializer},
     )
     @_maps_forms_errors
+    @gated("manage")
     def patch(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "manage")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         body = self.get_request_serializer_class()(data=request.data)
@@ -354,8 +448,9 @@ class FormDetailView(SerializerSeamMixin, APIView):
 
     @extend_schema(parameters=[_WORKSPACE_PARAM], responses={204: None})
     @_maps_forms_errors
+    @gated("manage")
     def delete(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "manage")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         services.delete_form(form)
@@ -363,10 +458,9 @@ class FormDetailView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms"])
-class FormDraftView(SerializerSeamMixin, APIView):
+class FormDraftView(AdminAPIView):
     """Replace the builder's scratchpad."""
 
-    permission_classes = [IsNotAnonymousUser]
     request_serializer_class = DraftSerializer
     response_serializer_class = FormSerializer
 
@@ -374,8 +468,9 @@ class FormDraftView(SerializerSeamMixin, APIView):
         parameters=[_WORKSPACE_PARAM], request=DraftSerializer, responses={200: FormSerializer}
     )
     @_maps_forms_errors
+    @gated("manage")
     def put(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "manage")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         body = self.get_request_serializer_class()(data=request.data)
@@ -387,18 +482,18 @@ class FormDraftView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms"])
-class FormPublishView(SerializerSeamMixin, APIView):
+class FormPublishView(AdminAPIView):
     """Freeze the draft as the next immutable version."""
 
-    permission_classes = [IsNotAnonymousUser]
     response_serializer_class = PublishResultSerializer
 
     @extend_schema(
         parameters=[_WORKSPACE_PARAM], request=None, responses={201: PublishResultSerializer}
     )
     @_maps_forms_errors
+    @gated("manage")
     def post(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "manage")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         version = services.publish(form, user=_acting_user(request))
@@ -409,10 +504,9 @@ class FormPublishView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms"])
-class FormStateView(SerializerSeamMixin, APIView):
+class FormStateView(AdminAPIView):
     """Open or close the form for submissions."""
 
-    permission_classes = [IsNotAnonymousUser]
     request_serializer_class = StateSerializer
     response_serializer_class = FormSerializer
 
@@ -420,8 +514,9 @@ class FormStateView(SerializerSeamMixin, APIView):
         parameters=[_WORKSPACE_PARAM], request=StateSerializer, responses={200: FormSerializer}
     )
     @_maps_forms_errors
+    @gated("manage")
     def post(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "manage")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         body = self.get_request_serializer_class()(data=request.data)
@@ -433,16 +528,16 @@ class FormStateView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms"])
-class FormRotateLinkView(SerializerSeamMixin, APIView):
+class FormRotateLinkView(AdminAPIView):
     """Mint a new public handle, invalidating every distributed link."""
 
-    permission_classes = [IsNotAnonymousUser]
     response_serializer_class = FormSerializer
 
     @extend_schema(parameters=[_WORKSPACE_PARAM], request=None, responses={200: FormSerializer})
     @_maps_forms_errors
+    @gated("manage")
     def post(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "manage")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         form = services.rotate_link(form)
@@ -452,7 +547,7 @@ class FormRotateLinkView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms"])
-class FieldKindsView(SerializerSeamMixin, APIView):
+class FieldKindsView(AdminAPIView):
     """The field kinds a form may be built from, with their config forms.
 
     The builder is data-driven off stapel-attributes' ``config_form()``
@@ -469,15 +564,15 @@ class FieldKindsView(SerializerSeamMixin, APIView):
     form has no use for the builder's dictionary.
     """
 
-    permission_classes = [IsNotAnonymousUser]
     response_serializer_class = FieldKindsSerializer
 
     @extend_schema(parameters=[_WORKSPACE_PARAM], responses={200: FieldKindsSerializer})
     @_maps_forms_errors
+    @gated("manage")
     def get(self, request):
         query = WorkspaceQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
-        denied = _access_error(request, query.validated_data["workspace_id"], "manage")
+        denied = _access_error(request, query.validated_data["workspace_id"])
         if denied:
             return denied
         return StapelResponse(
@@ -488,18 +583,18 @@ class FieldKindsView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms"])
-class FormVersionListView(SerializerSeamMixin, APIView):
+class FormVersionListView(AdminAPIView):
     """The form's published versions, newest first."""
 
-    permission_classes = [IsNotAnonymousUser]
     response_serializer_class = FormVersionSerializer
 
     @extend_schema(
         parameters=[_WORKSPACE_PARAM], responses={200: FormVersionSerializer(many=True)}
     )
     @_maps_forms_errors
+    @gated("view")
     def get(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "view")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         presenter = get_version_presenter()
@@ -517,10 +612,9 @@ class FormVersionListView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms / responses"])
-class FormSubmissionListView(SerializerSeamMixin, APIView):
+class FormSubmissionListView(AdminAPIView):
     """Keyset page of a form's responses, newest first."""
 
-    permission_classes = [IsNotAnonymousUser]
     response_serializer_class = SubmissionSerializer
 
     @extend_schema(
@@ -541,8 +635,9 @@ class FormSubmissionListView(SerializerSeamMixin, APIView):
         responses={200: SubmissionSerializer(many=True)},
     )
     @_maps_forms_errors
+    @gated("responses.view")
     def get(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "responses.view")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         query = SubmissionListQuerySerializer(data=request.query_params)
@@ -562,16 +657,16 @@ class FormSubmissionListView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms / responses"])
-class SubmissionDetailView(SerializerSeamMixin, APIView):
+class SubmissionDetailView(AdminAPIView):
     """Read or delete one response."""
 
-    permission_classes = [IsNotAnonymousUser]
     response_serializer_class = SubmissionSerializer
 
     @extend_schema(parameters=[_WORKSPACE_PARAM], responses={200: SubmissionSerializer})
     @_maps_forms_errors
+    @gated("responses.view")
     def get(self, request, submission_id):
-        submission, denied = _scoped_submission(request, submission_id, "responses.view")
+        submission, denied = _scoped_submission(request, submission_id)
         if denied:
             return denied
         return StapelResponse(
@@ -582,8 +677,9 @@ class SubmissionDetailView(SerializerSeamMixin, APIView):
 
     @extend_schema(parameters=[_WORKSPACE_PARAM], responses={204: None})
     @_maps_forms_errors
+    @gated("responses.manage")
     def delete(self, request, submission_id):
-        submission, denied = _scoped_submission(request, submission_id, "responses.manage")
+        submission, denied = _scoped_submission(request, submission_id)
         if denied:
             return denied
         services.delete_submission(submission)
@@ -591,7 +687,7 @@ class SubmissionDetailView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms / responses"])
-class SubmissionResendView(SerializerSeamMixin, APIView):
+class SubmissionResendView(AdminAPIView):
     """Re-deliver one response to the form's notify targets.
 
     Admin-initiated and therefore cooldown-independent: the auto-notify
@@ -599,7 +695,6 @@ class SubmissionResendView(SerializerSeamMixin, APIView):
     for one letter is not one.
     """
 
-    permission_classes = [IsNotAnonymousUser]
     request_serializer_class = ResendSerializer
     response_serializer_class = ResendResultSerializer
 
@@ -609,8 +704,9 @@ class SubmissionResendView(SerializerSeamMixin, APIView):
         responses={200: ResendResultSerializer},
     )
     @_maps_forms_errors
+    @gated("responses.manage")
     def post(self, request, submission_id):
-        submission, denied = _scoped_submission(request, submission_id, "responses.manage")
+        submission, denied = _scoped_submission(request, submission_id)
         if denied:
             return denied
         body = self.get_request_serializer_class()(data=request.data or {})
@@ -626,7 +722,7 @@ class SubmissionResendView(SerializerSeamMixin, APIView):
 
 
 @extend_schema(tags=["Forms / responses"])
-class SubmissionExportView(APIView):
+class SubmissionExportView(AdminAPIView):
     """Stream responses as CSV.
 
     Streamed and page-capped rather than materialized: an export is the one
@@ -634,8 +730,6 @@ class SubmissionExportView(APIView):
     formula-injection escape lives in ``export.py`` so every consumer of
     the CSV inherits it.
     """
-
-    permission_classes = [IsNotAnonymousUser]
 
     @extend_schema(
         parameters=[
@@ -652,8 +746,9 @@ class SubmissionExportView(APIView):
         responses={(200, "text/csv"): None},
     )
     @_maps_forms_errors
+    @gated("responses.view")
     def get(self, request, form_id):
-        form, denied = _scoped_form(request, form_id, "responses.view")
+        form, denied = _scoped_form(request, form_id)
         if denied:
             return denied
         query = SubmissionListQuerySerializer(data=request.query_params)
@@ -678,28 +773,33 @@ class SubmissionExportView(APIView):
 # ─────────────────────────────────────────────────────────────────────
 
 
-def _scoped_form(request, form_id, action):
+def _scoped_form(request, form_id):
+    """The form, or the refusal — gated on the action the handler declared."""
     query = WorkspaceQuerySerializer(data=request.query_params)
     query.is_valid(raise_exception=True)
     workspace_id = query.validated_data["workspace_id"]
-    denied = _access_error(request, workspace_id, action)
+    denied = _access_error(request, workspace_id)
     if denied:
         return None, denied
     return services.get_form(form_id, workspace_id), None
 
 
-def _scoped_submission(request, submission_id, action):
+def _scoped_submission(request, submission_id):
+    """The response row, or the refusal — same gate, same declared action."""
     query = WorkspaceQuerySerializer(data=request.query_params)
     query.is_valid(raise_exception=True)
     workspace_id = query.validated_data["workspace_id"]
-    denied = _access_error(request, workspace_id, action)
+    denied = _access_error(request, workspace_id)
     if denied:
         return None, denied
     return services.get_submission(submission_id, workspace_id), None
 
 
 __all__ = [
-    "SerializerSeamMixin",
+    "GATE_ATTR",
+    "gated",
+    "CapabilityAwareAutoSchema",
+    "AdminAPIView",
     "TokenPathNoLogMixin",
     "SubmitThrottle",
     "PublicSchemaThrottle",

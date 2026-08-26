@@ -22,20 +22,26 @@ PYTHON ?= python3
 # Emit the contract triad + capabilities.json + llms.txt, then assemble
 # README.md from docs/readme.md plus everything above.
 #
-# The llms.txt budget is raised from the generator's default 4000 to 5000,
+# The llms.txt budget is raised from the generator's default 4000 to 5200,
 # the same exception stapel-recordings (5000), stapel-workspaces (4500) and
-# stapel-auth (8000) already take. The measured document is ~4710 tokens,
-# and the bulk of it is the 31-entry usage surface plus the 21-key error
+# stapel-auth (8000) already take. The measured document is ~5017 tokens,
+# and the bulk of it is the 32-entry usage surface plus the 21-key error
 # catalogue — a service-layer library whose whole point is that callers use
 # its functions instead of writing their own version of them. Raise the
 # ceiling deliberately; do NOT shorten the `intent` lines in
 # docs/capabilities.meta.json to fit, because a trimmed context file reads
 # exactly like a complete one at the point of use, which is the failure
-# mode the hard budget exists to prevent.
+# mode the hard budget exists to prevent. (4710 -> 5017 in 0.3.0: the
+# `capability_for` surface entry. Note what the generator does NOT render:
+# it has no section for the `capabilities` block of capabilities.json, so
+# an agent reading llms.txt alone still cannot see which capability gates
+# which route — that reader has to open docs/capabilities.json or the
+# x-stapel-capability field in docs/schema.json. Teaching llms_txt the
+# section is a stapel-tools change, not a per-module workaround.)
 contract:
 	$(PYTHON) -m stapel_forms._codegen --out docs
 	$(PYTHON) -m stapel_forms._capabilities --out docs
-	$(PYTHON) -m stapel_tools.llms_txt . --out docs --budget 5000
+	$(PYTHON) -m stapel_tools.llms_txt . --out docs --budget 5200
 	$(PYTHON) -m stapel_tools.readme .
 
 # Drift gate: regenerate into a temp dir and diff against the committed docs/*.
@@ -43,7 +49,7 @@ contract-check:
 	@tmp=$$(mktemp -d); \
 	$(PYTHON) -m stapel_forms._codegen --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
 	$(PYTHON) -m stapel_forms._capabilities --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
-	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 5000 || { rm -rf "$$tmp"; exit 1; }; \
+	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 5200 || { rm -rf "$$tmp"; exit 1; }; \
 	rc=0; \
 	for f in schema.json flows.json errors.json capabilities.json llms.txt; do \
 		if ! diff -q "docs/$$f" "$$tmp/$$f" >/dev/null 2>&1; then \

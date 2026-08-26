@@ -1,5 +1,5 @@
 {
-  "_comment": "Hand-curated layer of docs/capabilities.json (capability-config.md §2 p.3). The emitter (stapel_forms/_capabilities.py) merges this over the derived axes; an axis present in conf.py DEFAULTS but missing here (or vice versa) is a loud emission error. Keep business_label/summary in business language — they surface in CTO conversations, not in code. The axes are the settings that change WHAT THE PRODUCT PROMISES a respondent: which field kinds a form may ask, whether their IP is kept, how long their answers live, whether public forms run without a captcha, and whether a form that changed mid-fill still accepts the old one. The throttle rates, size gates, volume caps, page sizes and the notify cooldown are deliberately NOT axes — they bound abuse and tune throughput; they do not change the deal. `surface_roots` + `surface` are the usage surface (stapel_tools.surface): the symbols a host or sibling module is meant to CALL instead of writing its own version. Deliberately NOT rooted: events.py (the service layer emits form.* inside its own mutating transactions — host code that emits them double-publishes a public fact), functions.py/actions.py (comm surface, reached by name over the bus, never imported), checks.py (Django check callbacks), presenters.py (the view layer's DTO discipline; hosts reach it through the PRESENTERS swap keys documented as an extension point), notifications.py (the module owns its own reaction; a host that wants another one subscribes to form.submission.received).",
+  "_comment": "Hand-curated layer of docs/capabilities.json (capability-config.md §2 p.3). The emitter (stapel_forms/_capabilities.py) merges this over the derived axes; an axis present in conf.py DEFAULTS but missing here (or vice versa) is a loud emission error. Keep business_label/summary in business language — they surface in CTO conversations, not in code. The axes are the settings that change WHAT THE PRODUCT PROMISES a respondent: which field kinds a form may ask, whether their IP is kept, how long their answers live, whether public forms run without a captcha, and whether a form that changed mid-fill still accepts the old one. The throttle rates, size gates, volume caps, page sizes and the notify cooldown are deliberately NOT axes — they bound abuse and tune throughput; they do not change the deal. `surface_roots` + `surface` are the usage surface (stapel_tools.surface): the symbols a host or sibling module is meant to CALL instead of writing its own version. Deliberately NOT rooted: events.py (the service layer emits form.* inside its own mutating transactions — host code that emits them double-publishes a public fact), functions.py/actions.py (comm surface, reached by name over the bus, never imported), checks.py (Django check callbacks), presenters.py (the view layer's DTO discipline; hosts reach it through the PRESENTERS swap keys documented as an extension point), notifications.py (the module owns its own reaction; a host that wants another one subscribes to form.submission.received). The `capabilities` block is the curated half of the WORKSPACE CAPABILITY projection (a permission string a host grants in STAPEL_WORKSPACES[\"ROLES\"], not a config switch): the operations each one gates are derived from schema.json's x-stapel-capability, written by views.CapabilityAwareAutoSchema off the same @gated(...) declaration that authorizes the request, so what is published and what is enforced cannot diverge. An entry here for a capability nothing enforces, or an enforced capability with no entry here, is a loud emission error.",
   "provides": "Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.",
   "requires": [
     {
@@ -70,6 +70,28 @@
     "ACCEPT_PREVIOUS_VERSION_SECONDS": {
       "business_label": "Grace period after a form changes",
       "summary": "Zero. Publishing an edit mints a new immutable version, and a response in flight against the old one is refused wholesale so the renderer can refetch and tell the respondent the form changed — better than half-validating answers against a schema they never saw. A host that would rather accept the tail of in-flight fills opens a window here."
+    }
+  },
+  "capabilities": {
+    "forms.view": {
+      "business_label": "See the workspace's forms",
+      "summary": "Read-only access to the form catalogue: which forms exist, their state and public handle, and the published version history. It carries no sight of what anybody answered — that is a separate grant, because the people who need to know a survey exists are usually not the people entitled to read the replies.",
+      "behavior": "Holding it is necessary and sufficient — the routes below ask for this exact string and nothing else. What it cannot tell a client: a 403 from these routes means EITHER the capability is not granted OR the workspaces service rendered no verdict. stapel-core's require_capability still collapses outage into denial (verified against 0.45.0: a FunctionCallError returns None, it never raises WorkspaceLookupUnavailable), so the 503 branch in stapel_forms.authz cannot fire. Treat a 403 as \"not now\", not as \"this principal will never hold this\"; re-read the grant from the workspaces service rather than caching the refusal."
+    },
+    "forms.manage": {
+      "business_label": "Build and publish forms",
+      "summary": "Create, rename, edit the draft, publish a version, open or close the form, rotate the public link, soft-delete, and read the builder's field-kind dictionary. This is authorship of the questionnaire and of the URL strangers answer it on; it does not by itself grant sight of a single response.",
+      "behavior": "Holding it is necessary and sufficient — the routes below ask for this exact string and nothing else. What it cannot tell a client: a 403 from these routes means EITHER the capability is not granted OR the workspaces service rendered no verdict. stapel-core's require_capability still collapses outage into denial (verified against 0.45.0: a FunctionCallError returns None, it never raises WorkspaceLookupUnavailable), so the 503 branch in stapel_forms.authz cannot fire. Treat a 403 as \"not now\", not as \"this principal will never hold this\"; re-read the grant from the workspaces service rather than caching the refusal."
+    },
+    "forms.responses.view": {
+      "business_label": "Read form responses",
+      "summary": "Read what respondents wrote: the keyset response listing, one response in full, and the CSV export. There is deliberately no separate export capability — an export is a read, and pricing it differently would only invite the belief that the listing is the safer of the two.",
+      "behavior": "Holding it is necessary and sufficient — the routes below ask for this exact string and nothing else. What it cannot tell a client: a 403 from these routes means EITHER the capability is not granted OR the workspaces service rendered no verdict. stapel-core's require_capability still collapses outage into denial (verified against 0.45.0: a FunctionCallError returns None, it never raises WorkspaceLookupUnavailable), so the 503 branch in stapel_forms.authz cannot fire. Treat a 403 as \"not now\", not as \"this principal will never hold this\"; re-read the grant from the workspaces service rather than caching the refusal."
+    },
+    "forms.responses.manage": {
+      "business_label": "Delete and re-send form responses",
+      "summary": "Act on a stored response: delete one permanently, or re-send one to the form's notify targets (or to an override list). This is the destructive half of response handling and the practical channel for an erasure request arriving by email from an anonymous respondent, who has no self-service route. Grant it to whoever answers for that promise, not to everyone who may read the replies.",
+      "behavior": "Holding it is necessary and sufficient — the routes below ask for this exact string and nothing else. What it cannot tell a client: a 403 from these routes means EITHER the capability is not granted OR the workspaces service rendered no verdict. stapel-core's require_capability still collapses outage into denial (verified against 0.45.0: a FunctionCallError returns None, it never raises WorkspaceLookupUnavailable), so the 503 branch in stapel_forms.authz cannot fire. Treat a 403 as \"not now\", not as \"this principal will never hold this\"; re-read the grant from the workspaces service rather than caching the refusal."
     }
   },
   "surface_roots": [
@@ -315,6 +337,14 @@
       "intent": "The beat entry for the retention purge on the configured cadence, for a host to spread into CELERY_BEAT_SCHEDULE.",
       "instead_of": [
         "hardcoding the task name and crontab in host settings"
+      ]
+    },
+    "capability_for": {
+      "kind": "predicate",
+      "intent": "The workspace capability answering a forms action, and the only place that mapping is read — call it instead of hardcoding a \"forms.*\" string, so a host-side gate and this module's gate can never name different permissions for the same door.",
+      "instead_of": [
+        "a literal \"forms.responses.manage\" in caller code",
+        "stapel_forms.authz.ACTION_CAPABILITIES[...]"
       ]
     }
   }

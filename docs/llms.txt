@@ -1,8 +1,8 @@
-# stapel-forms 0.2.0
+# stapel-forms 0.3.0
 
 Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.
 
-Contract: axes 5 · surface 31 · extension points 4 · operations 18 · error codes 75.
+Contract: axes 5 · surface 32 · extension points 4 · operations 18 · error codes 75.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -55,6 +55,9 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - answer_columns — stapel_forms.schema.answer_columns
   instead of: a union of columns over mutated schemas
   The (slug, label) columns of one version for review and export, section headings omitted. Stable per version — which is what the version FK buys.
+- capability_for — stapel_forms.authz.capability_for
+  instead of: a literal "forms.responses.manage" in caller code, stapel_forms.authz.ACTION_CAPABILITIES[...]
+  The workspace capability answering a forms action, and the only place that mapping is read — call it instead of hardcoding a "forms.*" string, so a host-side gate and this module's gate can never name different permissions for the same door.
 - escape_cell — stapel_forms.export.escape_cell
   instead of: str(value)
   Render a stored answer as a CSV-safe string, escaping the leading characters a spreadsheet would execute.

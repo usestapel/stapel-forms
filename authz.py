@@ -38,7 +38,13 @@ ALLOW = "allow"
 DENY = "deny"
 UNAVAILABLE = "unavailable"
 
-#: Actions and the workspace capability answering each.
+#: Actions and the workspace capability answering each. THE source: the
+#: view decorator (``views.gated``) both enforces this map and publishes it
+#: into the contract, so the capability a deployment reads and the
+#: capability an endpoint asks for are the same string by construction.
+#:
+#: There is deliberately no separate ``forms.responses.export``: an export
+#: is a read, and core's staff mandate grades view/add/change/delete only.
 ACTION_CAPABILITIES = {
     "view": "forms.view",
     "manage": "forms.manage",
@@ -46,15 +52,26 @@ ACTION_CAPABILITIES = {
     "responses.manage": "forms.responses.manage",
 }
 
-#: Declared in full on day 1 so host role overlays never have to migrate.
-#: There is deliberately no separate ``forms.responses.export``: an export
-#: is a read, and core's staff mandate grades view/add/change/delete only.
-CAPABILITIES = (
-    "forms.view",
-    "forms.manage",
-    "forms.responses.view",
-    "forms.responses.manage",
-)
+#: The capability strings this module enforces — DERIVED from the map above
+#: rather than restated, because a hand-kept second list is exactly how a
+#: capability ends up published-but-unenforced (or enforced-but-invisible,
+#: which is what ``forms.responses.manage`` was until 0.3.0). A capability
+#: that is reserved but not yet asked for by any endpoint does not belong
+#: here; it belongs in prose until an action maps to it.
+CAPABILITIES = tuple(ACTION_CAPABILITIES.values())
+
+
+def capability_for(action: str) -> str:
+    """The workspace capability answering *action*.
+
+    Raises :class:`ValueError` for an unknown action — call sites resolve
+    their action at import time, so a typo is an ImportError on boot rather
+    than a 500 (or, worse, a silently ungated endpoint) under traffic.
+    """
+    try:
+        return ACTION_CAPABILITIES[action]
+    except KeyError:
+        raise ValueError(f"unknown forms action: {action!r}") from None
 
 
 @dataclass(frozen=True)
@@ -78,8 +95,7 @@ def authorize(*, workspace_id, principal: Principal, action: str) -> str:
 
     Returns ``allow`` | ``deny`` | ``unavailable``.
     """
-    if action not in ACTION_CAPABILITIES:
-        raise ValueError(f"unknown forms action: {action!r}")
+    capability = capability_for(action)
 
     if principal.user_id is not None:
         from stapel_core.django.workspaces import (
@@ -89,7 +105,7 @@ def authorize(*, workspace_id, principal: Principal, action: str) -> str:
 
         try:
             membership = require_capability(
-                workspace_id, principal.user_id, ACTION_CAPABILITIES[action]
+                workspace_id, principal.user_id, capability
             )
         except WorkspaceLookupUnavailable:
             return UNAVAILABLE
@@ -107,4 +123,5 @@ __all__ = [
     "CAPABILITIES",
     "Principal",
     "authorize",
+    "capability_for",
 ]

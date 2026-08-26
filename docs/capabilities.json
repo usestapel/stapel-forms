@@ -1,6 +1,6 @@
 {
   "module": "stapel-forms",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "provides": "Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.",
   "axes": [
     {
@@ -85,6 +85,72 @@
       }
     }
   ],
+  "capabilities": [
+    {
+      "key": "forms.view",
+      "gates": {
+        "operations": [
+          "forms_api_v1_forms_list",
+          "forms_api_v1_forms_retrieve",
+          "forms_api_v1_forms_versions_list"
+        ],
+        "behavior": "Holding it is necessary and sufficient — the routes below ask for this exact string and nothing else. What it cannot tell a client: a 403 from these routes means EITHER the capability is not granted OR the workspaces service rendered no verdict. stapel-core's require_capability still collapses outage into denial (verified against 0.45.0: a FunctionCallError returns None, it never raises WorkspaceLookupUnavailable), so the 503 branch in stapel_forms.authz cannot fire. Treat a 403 as \"not now\", not as \"this principal will never hold this\"; re-read the grant from the workspaces service rather than caching the refusal."
+      },
+      "curated": {
+        "summary": "Read-only access to the form catalogue: which forms exist, their state and public handle, and the published version history. It carries no sight of what anybody answered — that is a separate grant, because the people who need to know a survey exists are usually not the people entitled to read the replies.",
+        "business_label": "See the workspace's forms"
+      }
+    },
+    {
+      "key": "forms.manage",
+      "gates": {
+        "operations": [
+          "forms_api_v1_field_kinds_retrieve",
+          "forms_api_v1_forms_create",
+          "forms_api_v1_forms_destroy",
+          "forms_api_v1_forms_draft_update",
+          "forms_api_v1_forms_partial_update",
+          "forms_api_v1_forms_publish_create",
+          "forms_api_v1_forms_rotate_link_create",
+          "forms_api_v1_forms_state_create"
+        ],
+        "behavior": "Holding it is necessary and sufficient — the routes below ask for this exact string and nothing else. What it cannot tell a client: a 403 from these routes means EITHER the capability is not granted OR the workspaces service rendered no verdict. stapel-core's require_capability still collapses outage into denial (verified against 0.45.0: a FunctionCallError returns None, it never raises WorkspaceLookupUnavailable), so the 503 branch in stapel_forms.authz cannot fire. Treat a 403 as \"not now\", not as \"this principal will never hold this\"; re-read the grant from the workspaces service rather than caching the refusal."
+      },
+      "curated": {
+        "summary": "Create, rename, edit the draft, publish a version, open or close the form, rotate the public link, soft-delete, and read the builder's field-kind dictionary. This is authorship of the questionnaire and of the URL strangers answer it on; it does not by itself grant sight of a single response.",
+        "business_label": "Build and publish forms"
+      }
+    },
+    {
+      "key": "forms.responses.view",
+      "gates": {
+        "operations": [
+          "forms_api_v1_forms_submissions_export_retrieve",
+          "forms_api_v1_forms_submissions_list",
+          "forms_api_v1_submissions_retrieve"
+        ],
+        "behavior": "Holding it is necessary and sufficient — the routes below ask for this exact string and nothing else. What it cannot tell a client: a 403 from these routes means EITHER the capability is not granted OR the workspaces service rendered no verdict. stapel-core's require_capability still collapses outage into denial (verified against 0.45.0: a FunctionCallError returns None, it never raises WorkspaceLookupUnavailable), so the 503 branch in stapel_forms.authz cannot fire. Treat a 403 as \"not now\", not as \"this principal will never hold this\"; re-read the grant from the workspaces service rather than caching the refusal."
+      },
+      "curated": {
+        "summary": "Read what respondents wrote: the keyset response listing, one response in full, and the CSV export. There is deliberately no separate export capability — an export is a read, and pricing it differently would only invite the belief that the listing is the safer of the two.",
+        "business_label": "Read form responses"
+      }
+    },
+    {
+      "key": "forms.responses.manage",
+      "gates": {
+        "operations": [
+          "forms_api_v1_submissions_destroy",
+          "forms_api_v1_submissions_resend_create"
+        ],
+        "behavior": "Holding it is necessary and sufficient — the routes below ask for this exact string and nothing else. What it cannot tell a client: a 403 from these routes means EITHER the capability is not granted OR the workspaces service rendered no verdict. stapel-core's require_capability still collapses outage into denial (verified against 0.45.0: a FunctionCallError returns None, it never raises WorkspaceLookupUnavailable), so the 503 branch in stapel_forms.authz cannot fire. Treat a 403 as \"not now\", not as \"this principal will never hold this\"; re-read the grant from the workspaces service rather than caching the refusal."
+      },
+      "curated": {
+        "summary": "Act on a stored response: delete one permanently, or re-send one to the form's notify targets (or to an override list). This is the destructive half of response handling and the practical channel for an erasure request arriving by email from an anonymous respondent, who has no self-service route. Grant it to whoever answers for that promise, not to everyone who may read the replies.",
+        "business_label": "Delete and re-send form responses"
+      }
+    }
+  ],
   "extension_points": [
     {
       "name": "FIELD_KINDS",
@@ -116,6 +182,16 @@
       "instead_of": [
         "stapel_core.django.workspaces.require_capability",
         "stapel_core.comm.call"
+      ]
+    },
+    {
+      "name": "capability_for",
+      "kind": "predicate",
+      "path": "stapel_forms.authz.capability_for",
+      "intent": "The workspace capability answering a forms action, and the only place that mapping is read — call it instead of hardcoding a \"forms.*\" string, so a host-side gate and this module's gate can never name different permissions for the same door.",
+      "instead_of": [
+        "a literal \"forms.responses.manage\" in caller code",
+        "stapel_forms.authz.ACTION_CAPABILITIES[...]"
       ]
     },
     {

@@ -24,11 +24,11 @@ pip install stapel-forms
 
 | Fact | Value |
 |---|---|
-| Version | `0.2.0` |
+| Version | `0.3.0` |
 | Python | `>=3.11` (3.11, 3.12, 3.13) |
 | HTTP operations | 18 |
 | Config axes | 5 |
-| Usage surface | 31 |
+| Usage surface | 32 |
 | Extension points | 4 |
 | Error codes | 75 |
 | Fleet dependencies | [`stapel-attributes`](https://github.com/usestapel/stapel-attributes) · [`stapel-core`](https://github.com/usestapel/stapel-core) · [`stapel-gdpr`](https://github.com/usestapel/stapel-gdpr) (optional) · [`stapel-notifications`](https://github.com/usestapel/stapel-notifications) (optional) · [`stapel-workspaces`](https://github.com/usestapel/stapel-workspaces) (optional) |

@@ -6,6 +6,120 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-26
+
+Additive at the HTTP layer — no route, status code or payload changes — but
+minor (pre-1.0: minor = breaking) on two counts a consumer must act on: the
+**stapel-core floor moves to 0.45.0**, and `stapel_forms.views` no longer
+exports a local `SerializerSeamMixin`.
+
+Closes the gap a frontend agent hit and correctly refused to paper over:
+`forms.responses.manage` was enforced on two endpoints and named in
+`authz.py` and in prose, and appeared in **no** machine-readable artifact
+this module ships. `docs/schema.json` documented those endpoints as
+`**Permissions:** IsNotAnonymousUser` — true, and useless to a UI deciding
+whether to offer a delete button. A deployment could therefore not express
+who may read and manage form responses, and the responses surface had to be
+shown to everyone or hidden from everyone.
+
+### Added
+
+- **The workspace capability projection.** All four capabilities
+  (`forms.view`, `forms.manage`, `forms.responses.view`,
+  `forms.responses.manage`) are now published in three places, all derived
+  from the gate that enforces them:
+
+  - `docs/capabilities.json` grows a `capabilities[]` section next to
+    `axes[]`, and deliberately mirrors its shape —
+    `{key, gates: {operations[], behavior}, curated: {summary, business_label}}`
+    — so a consumer walks both with the same code. `axes` answers "what may
+    this deployment do"; `capabilities` answers "who in it may do it".
+    `gates.operations` is derived, `curated` is hand-written in
+    `docs/capabilities.meta.json` under the same loud missing/extra check
+    the axes already get.
+  - `docs/schema.json` carries `"x-stapel-capability": "<capability>"` on
+    each of the 16 gated operations — the field a generated client can gate
+    on. The two anonymous respondent routes carry none, and a test asserts
+    they never will.
+  - each operation's rendered description gains a `**Capability:** …` line
+    beside core's existing `**Permissions:** …` one.
+
+- **`stapel_forms.authz.capability_for(action)`** — the workspace capability
+  answering a forms action, and the only place the mapping is read. Reach
+  for it instead of writing a `"forms.*"` literal in caller code.
+
+- **`stapel_forms.views.gated(action)`** — the decorator that declares AND
+  enforces one handler's action, and **`AdminAPIView`** / 
+  **`CapabilityAwareAutoSchema`**, the base and the schema that carry it.
+
+- `tests/test_capability_projection.py` — 45 tests. Every gated route is
+  driven twice (granted only its published capability: must not refuse;
+  granted every other capability: must refuse), the URLconf is walked to
+  prove no admin handler is undeclared, and the committed artifacts are
+  checked against the enforced set. It needs no sibling service: the
+  in-process `workspaces.check_capability` fake in `conftest.py` answers
+  from an explicit grant table.
+
+### Changed
+
+- **Projection and enforcement are now one object, not two that agree.**
+  `@gated("responses.manage")` is the only place an action is named. The
+  decorator stamps it on the request — which is what `_access_error()` reads
+  to call `authorize()` — and on the function, which is what the OpenAPI
+  schema reads to publish it. There is no second place to type the string,
+  so the contract cannot advertise a capability the endpoint will not
+  honour. Supporting consequences: an admin handler that reaches the gate
+  without `@gated` raises `ImproperlyConfigured` rather than defaulting to
+  an action; `@gated("typo")` is a `ValueError` at import; emission fails if
+  an enforced capability is projected by no operation or the schema projects
+  one `authz` does not enforce; and a changed declaration surfaces as
+  artifact drift in `make contract-check`.
+
+- `authz.CAPABILITIES` is now **derived** from `ACTION_CAPABILITIES` rather
+  than restated beside it. The two lists were identical, which is precisely
+  the state a hand-kept pair is in right up until it isn't.
+
+- Every view derives from the canonical
+  `stapel_core.django.api.views.StapelAPIView`; admin views go through the
+  local `AdminAPIView`, which adds `permission_classes` and the
+  capability-projecting schema. **The local `SerializerSeamMixin` copy is
+  deleted** — a host that imported `stapel_forms.views.SerializerSeamMixin`
+  imports it from `stapel_core.django.api.views` instead. The attributes and
+  getters are unchanged.
+
+- `_access_error(request, workspace_id)` and
+  `_scoped_form` / `_scoped_submission(request, id)` no longer take an
+  action argument: they read the declaration.
+
+- **Floor: `stapel-core>=0.45.0`.** `StapelAPIView` (0.37.0) and
+  `PermissionAwareAutoSchema` are hard imports at module load, so an older
+  core is an ImportError on boot rather than a degraded feature.
+
+- The `llms.txt` budget rises 5000 → 5200 for the `capability_for` surface
+  entry (measured ~5017), raised deliberately per the note in the Makefile
+  rather than by trimming `intent` lines to fit.
+
+### Known limitations, stated rather than papered over
+
+- **A 403 from a gated route still means either "not granted" or "the
+  workspaces service is unreachable".** Re-verified against stapel-core
+  0.45.0: `require_capability` logs a `FunctionCallError` and returns
+  `None`; it never raises `WorkspaceLookupUnavailable`, so the `unavailable`
+  → 503 branch in `authz.py` cannot fire. This is the one thing the
+  capability cannot tell a client, so it is published in every
+  `capabilities[].gates.behavior` rather than left in prose, and
+  `test_a_workspaces_outage_still_renders_403_not_503` pins the current
+  behaviour — the day the one-file core change lands, that test goes red and
+  the caveat gets deleted instead of outliving the defect (MODULE.md §12.3).
+
+- **`llms.txt` still cannot show which capability gates which route.**
+  `stapel_tools.llms_txt` has no section for the new block, so an agent
+  reading the context file alone has to open `docs/capabilities.json` or the
+  `x-stapel-capability` field in `docs/schema.json`. Teaching the generator
+  the section is a stapel-tools change (MODULE.md §12.6); hand-writing the
+  table into `capabilities.meta.json` would re-create exactly the
+  second copy this release removed.
+
 ## [0.2.0] — 2026-08-21
 
 Additive. Minor (pre-1.0: minor = breaking) because the

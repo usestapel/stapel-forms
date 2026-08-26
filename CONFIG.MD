@@ -63,7 +63,7 @@ There are no `import_strings` keys in this module.
 | Key | Owner | Why it matters here |
 |-----|-------|---------------------|
 | STAPEL_CAPTCHA["SECRET"] | stapel-core | with no backend configured the captcha verifier is a no-op and every bot that finds a public link is accepted; `stapel_forms.W001` says so. |
-| STAPEL_WORKSPACES["ROLES"] | stapel-workspaces | grants `forms.*` to roles. Without a grant every admin request denies; only `owner` has `*` by default. An entry REPLACES a whole role — there is no deep merge. |
+| STAPEL_WORKSPACES["ROLES"] | stapel-workspaces | grants `forms.*` to roles. Without a grant every admin request denies; only `owner` has `*` by default. An entry REPLACES a whole role — there is no deep merge. The four grantable strings, what each one means and exactly which operations it opens are published in `docs/capabilities.json` under `capabilities[]` (and per operation as `x-stapel-capability` in `docs/schema.json`), derived from the gate that enforces them — see MODULE.md §4. Do not transcribe them into a host-side constant: read `stapel_forms.authz.capability_for(action)` or the artifact. |
 | STAPEL_GDPR["DATA_OWNERS"] | stapel-gdpr | must include `"forms"`, or the erasure closure never completes (`gdpr.E002`; `stapel_forms.W003` warns from this side). |
 | STAPEL_NOTIFICATIONS["TYPES"] | stapel-notifications | the host-side bridge for `forms.submission_received` / `forms.submission_resend` until the upstream `NOTIFICATION_ROUTING` entries land. See MODULE.md §9. |
 | CELERY_BEAT_SCHEDULE | the host | must contain an entry whose `task` is `stapel_forms.tasks.purge_expired_submissions`, or retention never runs (`stapel_forms.W002`). |

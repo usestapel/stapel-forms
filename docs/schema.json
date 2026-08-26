@@ -8,7 +8,7 @@
     "/forms/api/v1/field-kinds": {
       "get": {
         "operationId": "forms_api_v1_field_kinds_retrieve",
-        "description": "The field kinds a form may be built from, with their config forms.\n\nThe builder is data-driven off stapel-attributes' ``config_form()``\ndeclarations (spec §8) — before this route existed the only way to read\nthem was to mirror them in the client, which is a table that drifts\nsilently. Serving the registry makes the declaration the single source\nof truth again: a type registered through ``EXTRA_TYPES`` shows up in\nthe builder with no client release.\n\nNothing here is per-form, but it is not public either: the catalogue\ntells a reader which kinds a deployment registered, including host types\nwhose slugs are internal vocabulary. It carries the same capability as\nform management (``forms.manage``) — a principal who cannot build a\nform has no use for the builder's dictionary.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "The field kinds a form may be built from, with their config forms.\n\nThe builder is data-driven off stapel-attributes' ``config_form()``\ndeclarations (spec §8) — before this route existed the only way to read\nthem was to mirror them in the client, which is a table that drifts\nsilently. Serving the registry makes the declaration the single source\nof truth again: a type registered through ``EXTRA_TYPES`` shows up in\nthe builder with no client release.\n\nNothing here is per-form, but it is not public either: the catalogue\ntells a reader which kinds a deployment registered, including host types\nwhose slugs are internal vocabulary. It carries the same capability as\nform management (``forms.manage``) — a principal who cannot build a\nform has no use for the builder's dictionary.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.manage`",
         "parameters": [
           {
             "in": "query",
@@ -38,13 +38,14 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.manage"
       }
     },
     "/forms/api/v1/forms": {
       "get": {
         "operationId": "forms_api_v1_forms_list",
-        "description": "List the workspace's forms, or create one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "List the workspace's forms, or create one.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.view`",
         "parameters": [
           {
             "in": "query",
@@ -109,11 +110,12 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.view"
       },
       "post": {
         "operationId": "forms_api_v1_forms_create",
-        "description": "List the workspace's forms, or create one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "List the workspace's forms, or create one.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.manage`",
         "tags": [
           "Forms"
         ],
@@ -176,13 +178,14 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.manage"
       }
     },
     "/forms/api/v1/forms/{form_id}": {
       "get": {
         "operationId": "forms_api_v1_forms_retrieve",
-        "description": "Read, rename or soft-delete one form.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Read, rename or soft-delete one form.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.view`",
         "parameters": [
           {
             "in": "path",
@@ -244,11 +247,12 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.view"
       },
       "patch": {
         "operationId": "forms_api_v1_forms_partial_update",
-        "description": "Read, rename or soft-delete one form.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Read, rename or soft-delete one form.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.manage`",
         "parameters": [
           {
             "in": "path",
@@ -329,11 +333,12 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.manage"
       },
       "delete": {
         "operationId": "forms_api_v1_forms_destroy",
-        "description": "Read, rename or soft-delete one form.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Read, rename or soft-delete one form.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.manage`",
         "parameters": [
           {
             "in": "path",
@@ -365,13 +370,14 @@
           "204": {
             "description": "No response body"
           }
-        }
+        },
+        "x-stapel-capability": "forms.manage"
       }
     },
     "/forms/api/v1/forms/{form_id}/draft": {
       "put": {
         "operationId": "forms_api_v1_forms_draft_update",
-        "description": "Replace the builder's scratchpad.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Replace the builder's scratchpad.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.manage`",
         "parameters": [
           {
             "in": "path",
@@ -453,13 +459,14 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.manage"
       }
     },
     "/forms/api/v1/forms/{form_id}/publish": {
       "post": {
         "operationId": "forms_api_v1_forms_publish_create",
-        "description": "Freeze the draft as the next immutable version.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Freeze the draft as the next immutable version.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.manage`",
         "parameters": [
           {
             "in": "path",
@@ -498,13 +505,14 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.manage"
       }
     },
     "/forms/api/v1/forms/{form_id}/rotate-link": {
       "post": {
         "operationId": "forms_api_v1_forms_rotate_link_create",
-        "description": "Mint a new public handle, invalidating every distributed link.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Mint a new public handle, invalidating every distributed link.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.manage`",
         "parameters": [
           {
             "in": "path",
@@ -566,13 +574,14 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.manage"
       }
     },
     "/forms/api/v1/forms/{form_id}/state": {
       "post": {
         "operationId": "forms_api_v1_forms_state_create",
-        "description": "Open or close the form for submissions.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Open or close the form for submissions.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.manage`",
         "parameters": [
           {
             "in": "path",
@@ -654,13 +663,14 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.manage"
       }
     },
     "/forms/api/v1/forms/{form_id}/submissions": {
       "get": {
         "operationId": "forms_api_v1_forms_submissions_list",
-        "description": "Keyset page of a form's responses, newest first.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Keyset page of a form's responses, newest first.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.responses.view`",
         "parameters": [
           {
             "in": "query",
@@ -725,13 +735,14 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.responses.view"
       }
     },
     "/forms/api/v1/forms/{form_id}/submissions/export": {
       "get": {
         "operationId": "forms_api_v1_forms_submissions_export_retrieve",
-        "description": "Stream responses as CSV.\n\nStreamed and page-capped rather than materialized: an export is the one\nread whose size is chosen by whoever filled the form in. The\nformula-injection escape lives in ``export.py`` so every consumer of\nthe CSV inherits it.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Stream responses as CSV.\n\nStreamed and page-capped rather than materialized: an export is the one\nread whose size is chosen by whoever filled the form in. The\nformula-injection escape lives in ``export.py`` so every consumer of\nthe CSV inherits it.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.responses.view`",
         "parameters": [
           {
             "in": "query",
@@ -779,13 +790,14 @@
           "200": {
             "description": "No response body"
           }
-        }
+        },
+        "x-stapel-capability": "forms.responses.view"
       }
     },
     "/forms/api/v1/forms/{form_id}/versions": {
       "get": {
         "operationId": "forms_api_v1_forms_versions_list",
-        "description": "The form's published versions, newest first.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "The form's published versions, newest first.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.view`",
         "parameters": [
           {
             "in": "path",
@@ -827,7 +839,8 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.view"
       }
     },
     "/forms/api/v1/public/{public_id}/": {
@@ -927,7 +940,7 @@
     "/forms/api/v1/submissions/{submission_id}": {
       "get": {
         "operationId": "forms_api_v1_submissions_retrieve",
-        "description": "Read or delete one response.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Read or delete one response.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.responses.view`",
         "parameters": [
           {
             "in": "path",
@@ -966,11 +979,12 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.responses.view"
       },
       "delete": {
         "operationId": "forms_api_v1_submissions_destroy",
-        "description": "Read or delete one response.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Read or delete one response.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.responses.manage`",
         "parameters": [
           {
             "in": "path",
@@ -1002,13 +1016,14 @@
           "204": {
             "description": "No response body"
           }
-        }
+        },
+        "x-stapel-capability": "forms.responses.manage"
       }
     },
     "/forms/api/v1/submissions/{submission_id}/resend": {
       "post": {
         "operationId": "forms_api_v1_submissions_resend_create",
-        "description": "Re-deliver one response to the form's notify targets.\n\nAdmin-initiated and therefore cooldown-independent: the auto-notify\ncooldown suppresses a respondent-driven flood, and an operator asking\nfor one letter is not one.\n\n**Permissions:** `IsNotAnonymousUser`",
+        "description": "Re-deliver one response to the form's notify targets.\n\nAdmin-initiated and therefore cooldown-independent: the auto-notify\ncooldown suppresses a respondent-driven flood, and an operator asking\nfor one letter is not one.\n\n**Permissions:** `IsNotAnonymousUser`\n\n**Capability:** `forms.responses.manage`",
         "parameters": [
           {
             "in": "path",
@@ -1066,7 +1081,8 @@
             },
             "description": ""
           }
-        }
+        },
+        "x-stapel-capability": "forms.responses.manage"
       }
     }
   },

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-forms"
-version = "0.2.0"
+version = "0.3.0"
 description = "Admin-defined forms, anonymous submissions and response review for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -23,13 +23,17 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # Floor 0.31.0: `request_notification(telegram_chat_id=...)` is the
-    # direct address the resend path uses for a form-configured chat, and
-    # it does not exist earlier — on an older core a telegram target would
-    # be a TypeError at the moment somebody presses resend. 0.26 already
-    # supplied the rest (docs/errors.json with the `owner` field the drift
-    # gate requires; implicitly no_env AppSettings import-string keys).
-    "stapel-core>=0.31.0,<1.0",
+    # Floor 0.45.0: the views here derive from the canonical
+    # `stapel_core.django.api.views.StapelAPIView` (0.37.0) instead of the
+    # local SerializerSeamMixin copy this module carried until 0.3.0, and
+    # the capability projection subclasses
+    # `stapel_core.django.openapi.schemas.PermissionAwareAutoSchema`. Both
+    # are hard imports at module load, so an older core is an ImportError
+    # on boot, not a degraded feature. 0.31.0 remains the reason the resend
+    # path can address a telegram chat directly
+    # (`request_notification(telegram_chat_id=...)`), and 0.26 supplied
+    # docs/errors.json's `owner` field that the drift gate requires.
+    "stapel-core>=0.45.0,<1.0",
     # The one extra runtime dependency (spec §9): the schema of a form IS a
     # list of stapel-attributes FeatureDefs, and submissions are validated
     # and normalized by its pipeline. An L1 library, imported directly —

@@ -86,14 +86,25 @@ Both views carry `TokenPathNoLogMixin` — the handle never reaches an error log
 
 There is no `forms.responses.export` capability: an export is a read.
 
+**This table is not the source.** Each capability is declared once, on the
+handler, with `@gated("responses.manage")`; the table above is prose that
+follows it. The declaration is what `authorize()` is asked for and what the
+contract publishes — see §4.
+
 `deny` → 403, `unavailable` → 503, never 403-on-outage.
 
-**Known limitation, stated rather than papered over:** as of stapel-core 0.31
-`require_capability` collapses "denied" and "workspaces peer unreachable" into
-the same `None`, so in practice an outage currently renders 403. The
-`unavailable` branch in `authz.py` is live and correct; making it fire is a
-one-file stapel-core change, not a per-module workaround that would
-re-implement the capability call and its cache.
+**Known limitation, stated rather than papered over:** re-verified against
+stapel-core **0.45.0** — `require_capability` still collapses "denied" and
+"workspaces peer unreachable" into the same `None` (a `FunctionCallError` is
+logged and returns `None`; `WorkspaceLookupUnavailable` is never raised out
+of it), so in practice an outage renders 403. The `unavailable` branch in
+`authz.py` is live and correct; making it fire is a one-file stapel-core
+change, not a per-module workaround that would re-implement the capability
+call and its cache. Because a client cannot tell the two apart, every entry
+of the capability projection carries the caveat in its
+`gates.behavior`, and `tests/test_capability_projection.py` pins the current
+behaviour so that the day core fixes it, the stale warning in the contract
+goes red instead of quietly outliving the defect.
 
 ### `GET /field-kinds` — the builder's dictionary
 
@@ -201,14 +212,70 @@ An alternative exists for a host that would rather not rely on the import:
 
 ## 4. Capabilities
 
+Four workspace capability strings, and — since 0.3.0 — one source for all of
+them:
+
 ```python
-CAPABILITIES = (
-    "forms.view",
-    "forms.manage",
-    "forms.responses.view",
-    "forms.responses.manage",
-)
+# stapel_forms/authz.py
+ACTION_CAPABILITIES = {
+    "view":             "forms.view",
+    "manage":           "forms.manage",
+    "responses.view":   "forms.responses.view",
+    "responses.manage": "forms.responses.manage",
+}
+CAPABILITIES = tuple(ACTION_CAPABILITIES.values())   # derived, not restated
 ```
+
+### Where a consumer reads them
+
+| Artifact | Shape | For |
+|---|---|---|
+| `docs/capabilities.json` → `capabilities[]` | `{key, gates:{operations[], behavior}, curated:{summary, business_label}}` | a deployment, a catalogue, a role-editor UI: what each grant means and exactly which operations it opens |
+| `docs/schema.json` → per operation | `"x-stapel-capability": "forms.responses.manage"` | a generated client: which capability gates *this* call |
+| the rendered description of each operation | `**Capability:** \`forms.responses.manage\`` | whoever is reading Swagger |
+| `stapel_forms.authz.capability_for(action)` | the string | server-side callers, instead of typing `"forms.*"` literals |
+
+The `capabilities[]` entry deliberately mirrors an `axes[]` entry — same
+`key` / `gates.operations` / `gates.behavior` / `curated` shape — so a
+consumer walks both with the same code. `axes` answers *what may this
+deployment do*; `capabilities` answers *who in it may do it*.
+
+### Why the projection cannot lie
+
+A capability that answers "yes" while the endpoint answers 403 is worse than
+no capability at all, because a UI trusts it and renders a control that leads
+to a refusal. Nothing here asserts that the published string and the enforced
+string agree — they are **the same object**:
+
+```
+@gated("responses.manage")            ← the only place the action is named
+        │
+        ├─ sets it on the request  → _access_error() → authorize() → workspaces
+        └─ sets it on the function → CapabilityAwareAutoSchema
+                                        → x-stapel-capability in schema.json
+                                        → capabilities[] in capabilities.json
+```
+
+Consequences worth knowing:
+
+- an admin handler that reaches the gate without `@gated` raises
+  `ImproperlyConfigured` — an undeclared action is a loud failure, never a
+  default;
+- `@gated("typo")` is a `ValueError` at import, so a mistyped action never
+  boots;
+- emission fails if a capability `authz` enforces is projected by no
+  operation, or if the schema projects a capability `authz` does not enforce;
+- `make contract-check` catches a changed declaration as artifact drift.
+
+On top of that, `tests/test_capability_projection.py` drives **every** gated
+route twice — granted only its published capability (must not refuse) and
+granted every other capability (must refuse) — so the contract is checked
+behaviourally as well as structurally.
+
+**What the capability cannot tell you:** whether a 403 means "not granted" or
+"the workspaces service is unreachable". See §3.
+
+### Granting them
 
 Declared in full on day 1 so a host's role overlay never has to migrate.
 stapel-workspaces ships no per-module defaults — only `owner` has `*` — so a
@@ -445,8 +512,16 @@ legal" must not also re-send it to everybody who already got it.
 | `STAPEL_SWAP` presenter keys | swap | `FORMS_FORM_PRESENTER`, `FORMS_VERSION_PRESENTER`, `FORMS_SUBMISSION_PRESENTER` |
 | `SerializerSeamMixin` | class override | request/response serializer of any view |
 
+Since 0.3.0 the seam is core's canonical one: every view here derives from
+`stapel_core.django.api.views.StapelAPIView` (admin views through the local
+`AdminAPIView`, which adds the capability-projecting schema), and the local
+copy of `SerializerSeamMixin` is deleted. The attributes and getters a host
+overrides are unchanged.
+
 The anonymous envelope is deliberately **not** swappable: it is the one shape
-whose contents are a security decision.
+whose contents are a security decision. Neither is the capability of a route:
+`@gated` is a declaration, not a seam — a host that could re-point it would
+be able to widen an endpoint without the contract saying so.
 
 There are no dotted-path `import_strings` in this module. The seams are the
 attributes registry server-side and the `@stapel/forms-react` widget/slot
@@ -490,12 +565,28 @@ Recorded so they are debts rather than folklore:
    this is the last piece: two dict entries and their email templates.
 3. **`require_capability` distinguishing outage from denial** in stapel-core,
    which is what would make the `unavailable` → 503 branch in §3 fire.
+   Re-verified still open on core 0.45.0. It is now the ONE thing the
+   capability projection has to publish a caveat about, so closing it also
+   removes a line from every `capabilities[].gates.behavior`;
+   `tests/test_capability_projection.py::test_a_workspaces_outage_still_renders_403_not_503`
+   goes red the moment it lands, which is how the caveat gets deleted
+   instead of outliving the defect.
 4. **An email-keyed GDPR subject** in stapel-gdpr, which is what would give
    anonymous respondents a self-service erasure channel (§7).
 5. ~~**A `multiline` param on the attributes `string` type**~~ — **landed** in
    stapel-attributes 0.4.6 (the floor this module now pins), declared in
    `config_form._string_form()` and served through `GET /field-kinds`.
-6. **`translations/errors.<lang>.json` in stapel-attributes.** It owns 12
+6. **A `capabilities` section in `stapel_tools.llms_txt`.** The generator
+   renders header / axes / operations / errors / extension_points / requires
+   / surface, and has no section for the workspace-capability block this
+   module now emits into `docs/capabilities.json`. An agent reading
+   `llms.txt` alone therefore still cannot see which capability gates which
+   route — it has to open `capabilities.json` or the `x-stapel-capability`
+   field in `schema.json`. Teaching the generator the section is a
+   stapel-tools change; faking it with prose in `capabilities.meta.json`
+   would be a second hand-kept copy of exactly the table this release
+   stopped hand-keeping.
+7. **`translations/errors.<lang>.json` in stapel-attributes.** It owns 12
    keys this module's API returns and ships catalogues for none of them, so
    `make contract` warns `unshipped` on every emission and a localized
    deployment renders that family in English (§3). The strings exist in the
