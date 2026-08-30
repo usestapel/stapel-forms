@@ -374,9 +374,19 @@ Emitted inside the mutating transaction (outbox canon). Schemas in
 subscriber, so respondent answers do not ride it; a consumer that needs
 content fetches it under `forms.responses.view`.
 
-Consumed: `user.deleted` (→ GDPR erasure) and this module's own
+Consumed: `user.deleted` (→ GDPR erasure), `user.merged` and this module's own
 `form.submission.received` (→ the notify subscriber, so a notification outage
 can never roll back a respondent's answer).
+
+`user.merged` is the other half of the account life cycle and the opposite
+instruction to erasure: a guest folded into an existing account on sign-in has
+`Form.created_by`, `FormVersion.created_by` and `Submission.submitted_by`
+**re-parented** onto the survivor rather than destroyed. Already-erased
+submissions carry the `submitted_by = None` tombstone and stay that way — a
+merge does not resurrect an attribution its owner asked to have removed. A
+survivor with no user row here yet raises `MergeTargetNotReady` so the outbox
+redelivers instead of marking the answers delivered-and-lost; a malformed id is
+logged and ACKed. Idempotent.
 
 Provided comm Functions: **none** in v1. `forms.get_schema` has no consumer
 today — the renderer uses HTTP and so can a server-side caller. `functions.py`

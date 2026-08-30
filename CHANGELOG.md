@@ -6,6 +6,48 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-08-30
+
+### Added — `user.merged`: a guest's answers follow them into the account
+
+This module knew one thing about an account's end: destroy the answers. When
+a visitor who filled in a form as a guest signs in with an authenticator an
+existing account already holds, stapel-auth folds the two and emits
+`user.merged` — the opposite instruction. Nothing here answered it, so the
+guest's responses stayed attributed to an id that can no longer sign in:
+absent from the survivor's GDPR export, and outside any future erasure
+request too, because none is ever made for an account that was *merged*
+rather than closed. Nothing raises and nothing is logged when that happens —
+the first report is a person saying their submission is not in their history.
+
+- **`user.merged` is subscribed in `stapel_forms.actions`** and re-parents
+  the three columns this module keys by a user, in one transaction:
+  `Form.created_by`, `FormVersion.created_by` and `Submission.submitted_by`.
+  An answer belongs to whoever typed it, and after the merge that is the
+  survivor.
+- **The erasure tombstone wins.** A submission already erased under
+  `user.deleted` carries `submitted_by = None` and is therefore never matched
+  here: a merge does not resurrect an attribution its owner asked to have
+  removed. An anonymous answer (`submitted_by` NULL because nobody was signed
+  in) stays anonymous for the same reason.
+- **An ordering lag is retried; a bad id is not.** A guest who owns nothing
+  here is a quiet no-op (also the at-least-once idempotency path); a guest who
+  owns rows while the survivor has no user row here *yet* raises
+  `MergeTargetNotReady`, so the outbox redelivers instead of marking the event
+  delivered and stranding the answers. A malformed or missing id is logged and
+  ACKed — `ValidationError` included, which is what Django raises for an
+  uncoercible UUID and is not a `ValueError`, the guard a poison payload
+  otherwise escapes through and loops on forever.
+- `tests/test_user_merged.py` pins the rows moving, a redelivery moving
+  nothing further, the tombstone and the anonymous answer staying put, every
+  malformed shape ACKing, an event about users with no rows here doing
+  nothing — and `stapel_core.lifecycle.E001` returning `[]`, so the pair
+  cannot be broken again without a red test.
+
+**Minor, not patch**: a new consumed action is public surface. Requires no
+new stapel-core API; the E001 check that names the gap ships in stapel-core
+0.52.1.
+
 ## [0.4.0] — 2026-08-26
 
 **The caveat is gone from the contract.** No route, status code or payload
