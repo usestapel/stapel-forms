@@ -6,6 +6,42 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-09-03
+
+### Fixed — three bugs the first live render of 0.6.0 exposed
+
+All three were invisible to 0.6.0's own tests, and the reason is the same
+in each case: the tests asserted that a thing was *present* rather than
+that it *worked*.
+
+- **The builder rendered empty on a form full of questions.**
+  `builder_payload` was `json.dumps(...)`-ed in Python and then handed to
+  `{{ ...|json_script }}`, which serializes what it is given — so the
+  payload was encoded twice. The page was well-formed, the script tag was
+  there, `JSON.parse` succeeded, and it returned a **string**: every
+  `payload.x` was `undefined`, so the builder drew no fields, offered no
+  field kinds, and announced "version 1" on a form at v2.
+
+  The 0.6.0 test asserted `"stapel-forms-builder" in body`, which was true
+  the whole time. It is replaced by one that parses the payload the way the
+  browser does and asserts the schema, the allowed kinds, the active
+  version and the publish URL are actually in it.
+- **A template comment rendered as visible text.** Django's `{# ... #}` is
+  **single-line only**; the multi-line one in `change_form.html` was never
+  a comment, so operators saw literal braces and prose under the builder.
+  Now `{% comment %}`, with a test asserting no `{#` survives to the page.
+- **The responses page printed its title twice** — the admin's own
+  `content_title` block already renders `{{ title }}`, so the template's
+  extra `<h1>` was a duplicate.
+
+### Changed
+
+- The form change page no longer carries an empty "Questions" fieldset
+  above the builder. It was a placeholder `readonly_field` for a mount
+  point the builder does not use, and it duplicated the section heading.
+- The version picker is width-capped: a long derived change summary was
+  stretching the filter bar off the page.
+
 ## [0.6.0] — 2026-09-03
 
 ### The admin stopped being a peephole

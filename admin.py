@@ -110,20 +110,9 @@ class FormAdmin(admin.ModelAdmin):
     list_display = ("title", "state", "schema_version", "responses_link", "public_link", "updated_at")
     list_filter = ("state",)
     search_fields = ("id", "title", "workspace_id", "public_id")
-    readonly_fields = ("public_id", "created_at", "updated_at", "schema_builder")
+    readonly_fields = ("public_id", "created_at", "updated_at")
     fieldsets = (
         (None, {"fields": ("title", "state", "public_id")}),
-        (
-            _("Questions"),
-            {
-                "fields": ("schema_builder",),
-                "description": _(
-                    "Editing publishes a NEW VERSION of this same form. The "
-                    "public link never changes and old responses stay "
-                    "readable under the schema they answered."
-                ),
-            },
-        ),
         (_("Notifications and retention"), {"fields": ("settings",)}),
         (_("Advanced"), {"fields": ("created_at", "updated_at"), "classes": ("collapse",)}),
     )
@@ -153,14 +142,6 @@ class FormAdmin(admin.ModelAdmin):
     @admin.display(description=_("Public link"))
     def public_link(self, obj):
         return format_html('<code>{}</code>', obj.public_id)
-
-    @admin.display(description=_("Questions"))
-    def schema_builder(self, obj):
-        """Mount point for the builder; the widget itself is rendered by
-        ``forms/builder.html`` through the change-form template."""
-        if obj is None or obj.pk is None:
-            return _("Save the form first, then add questions.")
-        return mark_safe('<div id="stapel-forms-builder-slot"></div>')
 
     # ── extra views ───────────────────────────────────────────────────
 
@@ -366,8 +347,11 @@ class FormAdmin(admin.ModelAdmin):
         context["attributes_probe"] = get_config_editor_widget("config")().render(
             "__stapel_forms_probe", None, attrs={"id": "id___stapel_forms_probe"}
         )
-        context["builder_payload"] = json.dumps(
-            {
+        # A DICT, not `json.dumps(...)`. The template hands this to
+        # `json_script`, which serializes it — so pre-dumping would encode it
+        # twice and `JSON.parse` in the browser would hand the builder a
+        # string, every `payload.x` undefined and the editor silently empty.
+        context["builder_payload"] = {
                 "schema": schema or {"fields": [], "meta": {}},
                 # The same bundle the attributes widget imports. Named from
                 # `static()` rather than hardcoded so a hashed-manifest
@@ -390,8 +374,7 @@ class FormAdmin(admin.ModelAdmin):
                     if obj is not None and obj.pk
                     else None
                 ),
-            }
-        )
+        }
         return super().render_change_form(request, context, *args, **kwargs)
 
 

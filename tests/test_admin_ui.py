@@ -345,6 +345,64 @@ class TestBuilder:
         ).content.decode()
         assert "stapel-forms-builder" in body
 
+    def test_the_builder_payload_is_usable_json_not_a_json_string(
+        self, client, published_form, high_staff
+    ):
+        """The regression this pins shipped in 0.6.0 and rendered an empty
+        builder on a form with five questions.
+
+        `json_script` serializes what it is given, so handing it a string
+        that was ALREADY `json.dumps`-ed double-encodes it: the page is
+        well-formed, the script tag is present, `JSON.parse` succeeds — and
+        returns a **string**, so every `payload.x` is `undefined` and the
+        builder draws nothing.
+
+        Asserting the mount div exists (as the first test does) cannot see
+        any of that. Only parsing the payload the way the browser does can.
+        """
+        import html as html_mod
+        import json
+        import re
+
+        client.force_login(high_staff)
+        body = client.get(
+            reverse("admin:forms_form_change", args=[published_form.id])
+        ).content.decode()
+
+        match = re.search(
+            r'<script id="stapel-forms-builder-data" type="application/json">(.*?)</script>',
+            body,
+            re.S,
+        )
+        assert match, "the builder payload script tag is missing"
+        payload = json.loads(html_mod.unescape(match.group(1)))
+
+        assert isinstance(payload, dict), (
+            "payload decoded to a %s — it is double-encoded, and every "
+            "payload.x in the builder is undefined" % type(payload).__name__
+        )
+        # The things the builder cannot work without.
+        assert [f["slug"] for f in payload["schema"]["fields"]] == [
+            "sec", "full_name", "age", "plan",
+        ]
+        assert payload["schema"]["meta"]["title"] == "Sign up"
+        assert "string" in payload["allowedKinds"]
+        assert payload["activeVersion"] == 1
+        assert payload["publishUrl"].endswith("/publish/")
+        assert payload["attributesBundle"].endswith("attributes-admin.js")
+
+    def test_the_change_page_leaks_no_template_comment_as_visible_text(
+        self, client, published_form, high_staff
+    ):
+        """Django's `{# ... #}` is SINGLE-LINE only. A multi-line one is not
+        a comment at all — it renders to the operator as literal braces and
+        prose, which is what 0.6.0 shipped."""
+        client.force_login(high_staff)
+        body = client.get(
+            reverse("admin:forms_form_change", args=[published_form.id])
+        ).content.decode()
+        assert "{#" not in body and "#}" not in body
+
     def test_saving_a_schema_publishes_a_new_version(
         self, client, published_form, high_staff
     ):

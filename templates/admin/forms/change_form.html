@@ -15,9 +15,15 @@
     </noscript>
   </div>
 
-  {# The shipped stapel-attributes editor, rendered with no value: it draws
-     nothing and publishes the declarations + locale + message catalogues
-     the builder reads. See FormAdmin.render_change_form. #}
+  {% comment %}
+    The shipped stapel-attributes editor, rendered with no value: it draws
+    nothing and publishes the declarations + locale + message catalogues the
+    builder reads. See FormAdmin.render_change_form.
+
+    `{% comment %}`, not `{# ... #}`: Django's brace-hash comment is
+    SINGLE-LINE only, so a multi-line one is not a comment at all and renders
+    to the operator as literal braces and prose.
+  {% endcomment %}
   <div style="display:none">{{ attributes_probe }}</div>
 
   {{ builder_payload|json_script:"stapel-forms-builder-data" }}

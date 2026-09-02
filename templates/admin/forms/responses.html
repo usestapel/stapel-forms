@@ -30,8 +30,6 @@
   .sf-empty { padding: 32px; text-align: center; color: var(--body-quiet-color, #666); }
 </style>
 
-<h1>{{ title }}</h1>
-
 <form class="sf-filters" method="get">
   <div>
     <label for="sf-since">{% translate "From" %}</label>
@@ -57,7 +55,7 @@
   {% if history|length > 1 %}
   <div>
     <label for="sf-version">{% translate "Schema" %}</label>
-    <select id="sf-version" name="version">
+    <select id="sf-version" name="version" style="max-width:340px">
       <option value="">{% translate "current" %}</option>
       {% for entry in history %}
         <option value="{{ entry.version }}"{% if entry.version == pinned_version %} selected{% endif %}>
