@@ -6,6 +6,197 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-03
+
+### The admin stopped being a peephole
+
+The verdict this release answers, from the owner of a deployment using it:
+«на фронте может и работает, но на бэке вообще неюзабельно и при большом
+количестве откликов это каша».
+
+He was right, and the reason is worth recording rather than fixing
+quietly. Through 0.5.0 this module's admin was three read-only
+`ModelAdmin`s, on a stated argument: workspace admins are not Django
+staff, so form authors reach forms through the capability-gated REST
+surface and the admin only needs to be a peephole for an operator on a
+support ticket. That argument is sound — for a deployment whose form
+authors **are** workspace members. It is wrong for the shape a host
+actually runs first: a public form on a marketing site, answered by
+strangers, read by staff. There is no workspace member to be. There is an
+operator, a table of responses, and — until this release — a `JSONField`
+rendered as its `repr`.
+
+So the peephole became a surface, with the trust boundary unchanged.
+
+- **Responses render as a table driven by the schema.** Columns are the
+  labelled questions of the form, in the form's own order; a `select`
+  shows the option label the respondent clicked (`Pro`) instead of the
+  stored value (`["pro"]`), because `normalize_to_dao` already wrote the
+  label down at submit time and nothing was reading it. Every question
+  gets a cell including the ones left blank — a missing cell silently
+  shifts every later cell against its header, which is a table that lies
+  rather than a table with a gap.
+- **Filters and paging that survive a real inbox.** Date window
+  (`since`/`until`), case-insensitive substring search over answer text,
+  optionally scoped to one question, and keyset paging that keeps the
+  active filter in its cursor. The filters live in
+  `services.list_submissions`, not in the admin view, so the REST surface
+  and `@stapel/forms-react` inherit the same predicate — a filter that
+  exists on one review screen and not the other is where a second
+  implementation grows.
+- **A form builder.** Add, remove, reorder, relabel, re-slug, toggle
+  required; per-kind validation config. Saving publishes a **new version
+  of the same form** — form identity is what a host embedded in their HTML
+  (`public_id`), so an edit may never mint a new form, and the page says
+  so in as many words.
+- **The submission detail is a labelled table**, rendered against the
+  version that response answered. The raw `answers` and `client_meta`
+  fields are removed from the form rather than left beside it: leaving
+  them re-creates exactly what this release removed.
+
+**What the builder does NOT contain: a field-config editor.** The eleven
+per-kind config widgets, their quirks and their translations come from
+stapel-attributes' shipped `mountConfigEditor`, reached through a hidden
+`ConfigEditorWidget` this page renders and reads the payload of — the same
+public seam `stapel-categories` uses on its `config` field. No private
+import, no second catalogue, and a kind registered upstream reaches this
+builder with no release here. Writing a second config editor would have
+been the drift this module spent §3 of MODULE.md avoiding on the client
+side.
+
+### The mandate is unchanged, and now proven by tests
+
+`Submission` stays `@access.sensitive` (view MID, mutate HIGH) and the new
+surface inherits it: the answers table is gated on the *submission's* view
+permission, not the form's, because gating a view of respondent PII on
+`forms.view_form` (LOW) would have been a security downgrade dressed as a
+convenience. The forms changelist carries a response **count** and no
+answer content, for the same reason.
+
+The admin asks for **no workspace capability**, deliberately and now
+explicitly tested. The capability layer gates the REST product surface; a
+staff reviewer holding table permissions has no membership in the
+workspace that owns a public feedback form, and requiring one would lock
+them out of the deployment that needs this most. Two doors, still
+independent, each shut by default.
+
+### Versions stay out of the way without being taken away
+
+The Form/FormVersion split is correct and is not flattened — a response is
+only interpretable against the schema it answered. What changed is that an
+operator no longer has to reason about it before reading anything:
+
+- `FormVersion` is hidden from the admin index (`get_model_perms` → `{}`);
+  its pages stay reachable as the audit trail.
+- By default the table draws **the union of columns across every version**,
+  led by the current schema's order, each cell marked with whether that
+  row's own version defined the question. "Not asked" and "asked and left
+  blank" are different facts about a respondent.
+- The split surfaces as **one marker on the boundary row** where the schema
+  changed.
+- An **optional** version picker defaults to the current schema. It exists
+  for the case the default cannot cover: a field ADDED later can be shown
+  as blank on older rows, but a field REMOVED later cannot be shown at all,
+  because the current schema no longer knows it. Picking a version redraws
+  the table under exactly that version's columns.
+
+### Added
+
+- **`schema.diff_schemas(old, new)`** — added / removed / renamed /
+  retyped / required-changed between two published schemas, plus a
+  one-line summary. The identity rule it rests on: the **slug** is a
+  question's identity, because the slug is what the answer is stored
+  under. A relabelled field is a rename; a re-slugged one is a removal
+  plus an addition, and calling that a rename would tell an author their
+  history followed the field when it did not.
+- **`schema.version_history(form)`** — every version with its publish
+  time, active flag, response count and derived change summary. Derived,
+  never authored: a hand-written changelog on an immutable row is a second
+  source of truth that drifts the first time somebody is in a hurry.
+- **`presenters.present_answer_rows`** / **`present_response_table`** /
+  **`dao_display`** — the definition-driven projections the admin, the CSV
+  and the notification all now share.
+- **`services.form_answer_slugs(form)`** — every slug a form has published,
+  from the schemas rather than from a scan of stored keys. It is what lets
+  an unknown `field` filter answer **400** instead of an empty page: an
+  empty page reads as "no matches", and a typo'd field name is a different
+  fact.
+- **`export.format_value`** — the display renderer, split out of
+  `escape_cell` so three surfaces stop inventing their own. `escape_cell`
+  keeps its own recursion: a list renders as `a, =b` and escaping only the
+  joined result would hand a spreadsheet `=b` intact.
+- **`docs/embedding.md`** — how to put a form on a site: the `public_id`,
+  both endpoints with every status code, what a respondent sends and gets
+  back, a dependency-free copy-pasteable embed, and the throttle/captcha
+  behaviour an embed will actually hit.
+- **`GET /forms/<id>/submissions`** gained `since`, `until`, `q` and
+  `field`.
+
+### Changed — breaking
+
+- **The notification `answers` variable is now labelled rows**
+  (`[{label, display, answered}]` in schema order), not `{slug: value}`.
+  The old shape made a recipient read storage slugs and stored values —
+  `plan: ["pro"]` where the respondent clicked "Pro". A host template
+  iterating the old dict must be updated; there is no compatibility shim,
+  because one that silently emitted both shapes is how a template ends up
+  rendering the wrong one.
+- **`ADMIN_BASE_URL` and `NOTIFY_INCLUDE_ANSWERS` are new settings.** The
+  auto-notify letter now carries a deep **review link** to the response
+  whenever `ADMIN_BASE_URL` is set (navigation, not content, so it is
+  unconditional), and carries the **answers themselves only when
+  `NOTIFY_INCLUDE_ANSWERS` is True — which it is not by default.**
+
+  That default is the disclosure decision, made the way this module makes
+  every other one: closed, and said out loud. Answers are respondent PII
+  and email is the least controlled channel here — it leaves the
+  deployment, lands in inboxes nobody administers, and gets forwarded. So
+  the letter says what happened and where to read it under the admin's own
+  authentication, and a host that wants the content in the mail says so.
+
+  It does **not** gate `POST /submissions/<id>/resend`: that is an
+  authenticated operator holding `responses.manage` sending one named
+  response to one named address — the "send this one to legal" case, not a
+  standing subscription.
+
+  Answers also ride only when the letter stands for exactly **one**
+  response. Inside the cooldown, interim submissions fold into the next
+  letter as a count, and attaching one response's answers to a letter
+  announcing three would be wrong rather than merely terse.
+- **`ADMIN_BASE_URL` empty means the link is omitted, not relative.** A
+  relative href in an email is not a link, it is a bug report from the
+  recipient — and a library must not infer its own origin from a request
+  whose `Host` header a submitting stranger controlled.
+
+### Fixed
+
+- **The admin date filter was off by a timezone and a day.** On Python
+  3.11+ `django.utils.dateparse.parse_datetime` delegates to
+  `datetime.fromisoformat`, which accepts a bare `2026-09-01` and returns
+  midnight — so asking it before `parse_date` swallowed every date input,
+  silently ignored the end-of-day bound (turning an inclusive "to" into an
+  exclusive one and hiding a whole day of responses) and returned a naive
+  datetime that `USE_TZ` then reinterpreted with a warning rather than an
+  error. Both are the shape of bug that leaves a filter looking like it
+  works.
+- **`docs/errors.json` was stale**, missing
+  `error.400.feature_invalid_rules` — a key stapel-attributes owns and the
+  submit path can return. Two contract tests had been red against the
+  current attributes release; re-emission fixes both.
+
+### Notes for hosts
+
+- The email TEMPLATE is still host-side. This module now sends a report
+  worth rendering (`answers` rows + `review_url`); rendering it as a table
+  is the template's job, and the upstream `NOTIFICATION_ROUTING` entries
+  remain the recorded debt in MODULE.md §12.2.
+- The MAC only bites where `stapel_core.access.MandateBackend` is in
+  `AUTHENTICATION_BACKENDS`. A host running plain `ModelBackend` gets
+  ordinary Django model permissions on these screens — which is a
+  supported configuration, and is why the admin gates on
+  `has_view_permission` (correct under either backend) rather than on
+  clearance directly.
+
 ## [0.5.0] — 2026-08-30
 
 ### Added — `user.merged`: a guest's answers follow them into the account

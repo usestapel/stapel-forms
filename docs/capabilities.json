@@ -1,6 +1,6 @@
 {
   "module": "stapel-forms",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "provides": "Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.",
   "axes": [
     {
@@ -222,12 +222,30 @@
       ]
     },
     {
+      "name": "format_value",
+      "kind": "predicate",
+      "path": "stapel_forms.export.format_value",
+      "intent": "Render one stored answer value as a readable string (lists joined, booleans as true/false) with NO spreadsheet escaping. Reach for it on any display surface; reach for escape_cell instead when the destination is a CSV.",
+      "instead_of": [
+        "str() on a DAO value, which prints Python repr for lists and dicts, and escape_cell, whose leading apostrophe is protection in a cell and a typo in an email"
+      ]
+    },
+    {
       "name": "answer_columns",
       "kind": "predicate",
       "path": "stapel_forms.schema.answer_columns",
       "intent": "The (slug, label) columns of one version for review and export, section headings omitted. Stable per version — which is what the version FK buys.",
       "instead_of": [
         "a union of columns over mutated schemas"
+      ]
+    },
+    {
+      "name": "diff_schemas",
+      "kind": "predicate",
+      "path": "stapel_forms.schema.diff_schemas",
+      "intent": "Say what changed between two published schemas — added, removed, renamed, retyped, required-changed — under the rule that the SLUG is a question's identity, so a relabelled field is a rename and a re-slugged one is a removal plus an addition. Reach for it wherever an author or a reviewer has to be told what a publish did.",
+      "instead_of": [
+        "diffing two schema dicts in a template or a view, which reliably reports a re-slugged field as a rename and tells the author their answers followed it"
       ]
     },
     {
@@ -285,6 +303,15 @@
       ]
     },
     {
+      "name": "version_history",
+      "kind": "predicate",
+      "path": "stapel_forms.schema.version_history",
+      "intent": "The full published history of one form — ordinal, publish time, active flag, response count and a derived one-line summary of what each version changed. Reach for it to build a version picker, or anywhere an operator needs to see whether a version is worth opening.",
+      "instead_of": [
+        "walking form.versions and hand-writing a changelog, which is a second source of truth that drifts the first time somebody is in a hurry"
+      ]
+    },
+    {
       "name": "create_form",
       "kind": "factory",
       "path": "stapel_forms.services.create_form",
@@ -319,6 +346,15 @@
       "intent": "Erase a user's answers while keeping the tombstone, so response counts and per-version analytics stay truthful.",
       "instead_of": [
         "Submission.objects.filter(...).delete"
+      ]
+    },
+    {
+      "name": "form_answer_slugs",
+      "kind": "predicate",
+      "path": "stapel_forms.services.form_answer_slugs",
+      "intent": "Every question slug a form has ever published, newest first, read from the versions' schemas rather than from stored answer keys. Reach for it to validate a field-scoped filter or to build a question chooser.",
+      "instead_of": [
+        "scanning Submission.answers for keys, which misses questions nobody answered and cannot tell a typo'd field name from a genuinely empty result"
       ]
     },
     {

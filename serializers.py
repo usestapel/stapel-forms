@@ -96,9 +96,19 @@ class StateSerializer(serializers.Serializer):
 
 
 class SubmissionListQuerySerializer(serializers.Serializer):
+    """Paging cursor, date window and value search.
+
+    ``before`` (paging) and ``since``/``until`` (filtering) are separate
+    parameters on purpose — see ``services.list_submissions``.
+    """
+
     before = serializers.DateTimeField(required=False)
     limit = serializers.IntegerField(required=False, min_value=1)
     version = serializers.IntegerField(required=False, min_value=1)
+    since = serializers.DateTimeField(required=False)
+    until = serializers.DateTimeField(required=False)
+    q = serializers.CharField(required=False, allow_blank=True)
+    field = serializers.CharField(required=False, allow_blank=False)
 
 
 class SubmitSerializer(serializers.Serializer):

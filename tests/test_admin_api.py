@@ -179,7 +179,14 @@ def test_resend_is_admin_initiated_and_ignores_the_cooldown(
     resends = [s for s in sent if s[0] == "forms.submission_resend"]
     assert len(resends) == 2  # the cooldown never applies to an operator act
     assert resends[0][1] == (("email", "sales@example.com"),)
-    assert resends[0][2]["answers"]["full_name"] == "Ann"
+    # 0.6.0 changed this shape deliberately: `answers` is now labelled rows
+    # in schema order, not `{slug: value}`. The old shape made a recipient
+    # read storage slugs and stored values (`plan: ["pro"]`) where the
+    # respondent had clicked "Pro" — the same unreadable projection the
+    # admin was fixed to stop showing.
+    rows = {row["label"]: row["display"] for row in resends[0][2]["answers"]}
+    assert rows["Full name"] == "Ann"
+    assert rows["Plan"] == "Pro"
 
 
 def test_resend_accepts_a_destination_override(authed, workspace_id, published_form, monkeypatch):

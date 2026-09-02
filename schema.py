@@ -218,6 +218,143 @@ def answer_columns(schema: dict) -> List[tuple]:
     return columns
 
 
+def _question_index(schema) -> Dict[str, dict]:
+    """``{slug: entry}`` over the QUESTIONS of a schema, headers excluded.
+
+    Headers are captions and never held an answer, so a diff that counted
+    them would tell an author a field was removed and send them looking for
+    data that never existed.
+    """
+    index = {}
+    for entry in schema_fields(schema or {}):
+        config = entry.get("config") or {}
+        if config.get("type") == "header":
+            continue
+        slug = entry.get("slug")
+        if slug:
+            index[slug] = entry
+    return index
+
+
+def diff_schemas(old: Optional[dict], new: dict) -> dict:
+    """What changed between two published schemas.
+
+    Wanted by the version picker, by the builder ("publishing this changes
+    X") and possibly by the notification report — so it is a function with
+    tests rather than a loop in whichever template needed it first.
+
+    **The slug is the identity of a question**, because the slug is what
+    the answer is stored under. That single rule decides the whole shape:
+
+    - a changed *label* on the same slug is a **rename** — the same stored
+      column, relabelled, history intact;
+    - a changed *slug* is a **removal plus an addition** — the old answers
+      stay where they were and new ones land elsewhere. Reporting that as
+      a rename would tell an author their history follows the field, which
+      is the one thing it does not do.
+
+    ``old`` may be ``None`` for the first published version, whose whole
+    field list is then the addition.
+    """
+    before = _question_index(old)
+    after = _question_index(new)
+
+    added = [
+        {"slug": slug, "label": entry.get("name") or slug}
+        for slug, entry in after.items()
+        if slug not in before
+    ]
+    removed = [
+        {"slug": slug, "label": entry.get("name") or slug}
+        for slug, entry in before.items()
+        if slug not in after
+    ]
+
+    renamed, retyped, required_changed = [], [], []
+    for slug, entry in after.items():
+        prior = before.get(slug)
+        if prior is None:
+            continue
+        was_label = prior.get("name") or slug
+        now_label = entry.get("name") or slug
+        if was_label != now_label:
+            renamed.append({"slug": slug, "label": now_label, "was": was_label})
+        was_kind = (prior.get("config") or {}).get("type")
+        now_kind = (entry.get("config") or {}).get("type")
+        if was_kind != now_kind:
+            retyped.append(
+                {"slug": slug, "label": now_label, "was": was_kind, "now": now_kind}
+            )
+        if bool(prior.get("mandatory")) != bool(entry.get("mandatory")):
+            required_changed.append(
+                {"slug": slug, "label": now_label, "now": bool(entry.get("mandatory"))}
+            )
+
+    parts = []
+    if added:
+        parts.append("added " + ", ".join(e["label"] for e in added))
+    if removed:
+        parts.append("removed " + ", ".join(e["label"] for e in removed))
+    if renamed:
+        parts.append(
+            "renamed " + ", ".join(f"{e['was']} → {e['label']}" for e in renamed)
+        )
+    if retyped:
+        parts.append(
+            "retyped " + ", ".join(f"{e['label']} ({e['was']} → {e['now']})" for e in retyped)
+        )
+    if required_changed:
+        parts.append(
+            "required changed on " + ", ".join(e["label"] for e in required_changed)
+        )
+
+    return {
+        "added": added,
+        "removed": removed,
+        "renamed": renamed,
+        "retyped": retyped,
+        "required_changed": required_changed,
+        "summary": "; ".join(parts),
+        "is_empty": not parts,
+    }
+
+
+def version_history(form) -> List[dict]:
+    """Every published version, newest first, with what it changed.
+
+    The picker's data source. Each entry carries the ordinal, when it went
+    live, whether it is the one respondents currently answer, how many
+    responses it holds — so an empty version is visibly skippable — and a
+    one-line summary derived by diffing it against its predecessor. The
+    author is never asked to write that summary: a hand-written changelog
+    on an immutable row is a second source of truth that drifts the first
+    time somebody is in a hurry.
+    """
+    from django.db.models import Count
+
+    versions = list(
+        form.versions.annotate(_count=Count("submissions")).order_by("version")
+    )
+    history = []
+    previous = None
+    for version in versions:
+        change = diff_schemas(previous.schema if previous else None, version.schema)
+        history.append(
+            {
+                "id": str(version.id),
+                "version": version.version,
+                "published_at": version.published_at,
+                "is_active": version.id == form.active_version_id,
+                "submission_count": version._count,
+                "summary": change["summary"],
+                "change": change,
+            }
+        )
+        previous = version
+    history.reverse()
+    return history
+
+
 def _field_errors(result) -> List[FieldError]:
     errors = []
     for row in result.results:
@@ -251,4 +388,6 @@ __all__ = [
     "validate_answers",
     "to_dao",
     "answer_columns",
+    "diff_schemas",
+    "version_history",
 ]

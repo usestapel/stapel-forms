@@ -314,8 +314,40 @@ def _within_grace(form: Form, version_id) -> bool:
 # ─────────────────────────────────────────────────────────────────────
 
 
-def list_submissions(form: Form, *, before=None, limit=None, version=None):
-    """Keyset page, newest first (docs canon: no pagination framework)."""
+def form_answer_slugs(form: Form) -> list:
+    """Every question slug this form has ever published, newest first.
+
+    Definition-driven, like everything else that reads answers: the set
+    comes from the versions' schemas, never from scanning stored answer
+    keys. That is what makes an unknown ``field`` scope answerable as a
+    refusal instead of an empty page, and it stays bounded by
+    ``MAX_FIELDS_PER_FORM`` per version.
+    """
+    seen = []
+    for version in form.versions.all().order_by("-version"):
+        for slug, _label in schema_mod.answer_columns(version.schema):
+            if slug not in seen:
+                seen.append(slug)
+    return seen
+
+
+def list_submissions(form: Form, *, before=None, limit=None, version=None,
+                     since=None, until=None, q=None, field=None):
+    """Keyset page, newest first (docs canon: no pagination framework).
+
+    ``before`` is the PAGING cursor and ``since``/``until`` are the date
+    FILTER — different axes on the same column, deliberately separate
+    parameters so narrowing a window does not silently reset the caller's
+    position in it (and so the admin's "next page" inside a filtered view
+    keeps the filter).
+
+    ``q`` matches answer text, case-insensitively, as a substring;
+    ``field`` scopes it to one question. Unscoped, it ORs across every
+    slug the form has published — bounded by the schema, not by a scan of
+    whatever keys happen to be in storage. An erased submission carries
+    ``answers = {}`` and is therefore never matched by content it no
+    longer holds.
+    """
     cap = int(forms_settings.MAX_PAGE_SIZE)
     limit = min(int(limit or cap), cap)
     qs = Submission.objects.filter(form=form)
@@ -323,6 +355,31 @@ def list_submissions(form: Form, *, before=None, limit=None, version=None):
         qs = qs.filter(version__version=version)
     if before is not None:
         qs = qs.filter(submitted_at__lt=before)
+    if since is not None:
+        qs = qs.filter(submitted_at__gte=since)
+    if until is not None:
+        qs = qs.filter(submitted_at__lte=until)
+
+    needle = (q or "").strip()
+    if field is not None:
+        # A typo'd field name must not read as "no matches" — that is a
+        # different fact, and reporting it as an empty page is how a
+        # reviewer concludes a response does not exist.
+        if field not in form_answer_slugs(form):
+            raise FormsError(400, ERR_400_UNKNOWN_FIELD, {"field": field})
+        if needle:
+            qs = qs.filter(**{f"answers__{field}__value__icontains": needle})
+    elif needle:
+        from django.db.models import Q
+
+        slugs = form_answer_slugs(form)
+        if not slugs:
+            return []
+        predicate = Q()
+        for slug in slugs:
+            predicate |= Q(**{f"answers__{slug}__value__icontains": needle})
+        qs = qs.filter(predicate)
+
     return list(qs.select_related("version").order_by("-submitted_at", "-id")[:limit])
 
 

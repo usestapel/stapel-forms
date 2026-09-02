@@ -38,10 +38,18 @@ PYTHON ?= python3
 # which route — that reader has to open docs/capabilities.json or the
 # x-stapel-capability field in docs/schema.json. Teaching llms_txt the
 # section is a stapel-tools change, not a per-module workaround.)
+#
+# 5200 -> 5600 in 0.6.0: four new surface entries (diff_schemas,
+# version_history, form_answer_slugs, format_value) push the measured
+# document to ~5504 tokens. Raised deliberately, per the rule above. The
+# generator refuses to truncate precisely because a cut context file reads
+# exactly like a complete one, so the honest options are a bigger ceiling
+# or fewer public symbols — never shorter `intent` lines, which would keep
+# the number by making the entries that remain less useful.
 contract:
 	$(PYTHON) -m stapel_forms._codegen --out docs
 	$(PYTHON) -m stapel_forms._capabilities --out docs
-	$(PYTHON) -m stapel_tools.llms_txt . --out docs --budget 5200
+	$(PYTHON) -m stapel_tools.llms_txt . --out docs --budget 5600
 	$(PYTHON) -m stapel_tools.readme .
 
 # Drift gate: regenerate into a temp dir and diff against the committed docs/*.
@@ -49,7 +57,7 @@ contract-check:
 	@tmp=$$(mktemp -d); \
 	$(PYTHON) -m stapel_forms._codegen --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
 	$(PYTHON) -m stapel_forms._capabilities --out "$$tmp" || { rm -rf "$$tmp"; exit 1; }; \
-	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 5200 || { rm -rf "$$tmp"; exit 1; }; \
+	$(PYTHON) -m stapel_tools.llms_txt . --out "$$tmp" --budget 5600 || { rm -rf "$$tmp"; exit 1; }; \
 	rc=0; \
 	for f in schema.json flows.json errors.json capabilities.json llms.txt; do \
 		if ! diff -q "docs/$$f" "$$tmp/$$f" >/dev/null 2>&1; then \

@@ -1,8 +1,8 @@
-# stapel-forms 0.5.0
+# stapel-forms 0.6.0
 
 Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.
 
-Contract: axes 5 · surface 32 · extension points 4 · operations 18 · error codes 75.
+Contract: axes 5 · surface 36 · extension points 4 · operations 18 · error codes 76.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -58,18 +58,30 @@ This is the answer to "does Stapel already have something for X?". `instead of` 
 - capability_for — stapel_forms.authz.capability_for
   instead of: a literal "forms.responses.manage" in caller code, stapel_forms.authz.ACTION_CAPABILITIES[...]
   The workspace capability answering a forms action, and the only place that mapping is read — call it instead of hardcoding a "forms.*" string, so a host-side gate and this module's gate can never name different permissions for the same door.
+- diff_schemas — stapel_forms.schema.diff_schemas
+  instead of: diffing two schema dicts in a template or a view, which reliably reports a re-slugged field as a rename and tells the author their answers followed it
+  Say what changed between two published schemas — added, removed, renamed, retyped, required-changed — under the rule that the SLUG is a question's identity, so a relabelled field is a rename and a re-slugged one is a removal plus an addition. Reach for it wherever an author or a reviewer has to be told what a publish did.
 - escape_cell — stapel_forms.export.escape_cell
   instead of: str(value)
   Render a stored answer as a CSV-safe string, escaping the leading characters a spreadsheet would execute.
 - export_filename — stapel_forms.export.export_filename
   instead of: putting an admin-authored title into Content-Disposition
   A safe attachment filename derived from the form title.
+- form_answer_slugs — stapel_forms.services.form_answer_slugs
+  instead of: scanning Submission.answers for keys, which misses questions nobody answered and cannot tell a typo'd field name from a genuinely empty result
+  Every question slug a form has ever published, newest first, read from the versions' schemas rather than from stored answer keys. Reach for it to validate a field-scoped filter or to build a question chooser.
+- format_value — stapel_forms.export.format_value
+  instead of: str() on a DAO value, which prints Python repr for lists and dicts, and escape_cell, whose leading apostrophe is protection in a cell and a typo in an email
+  Render one stored answer value as a readable string (lists joined, booleans as true/false) with NO spreadsheet escaping. Reach for it on any display surface; reach for escape_cell instead when the destination is a CSV.
 - schema_fields — stapel_forms.schema.schema_fields
   instead of: schema['fields']
   The field-def list of a stored schema, tolerant of anything already on disk.
 - schema_meta — stapel_forms.schema.schema_meta
   instead of: schema['meta']
   The form-level meta (title, description, confirmation text, submit label) of a stored schema.
+- version_history — stapel_forms.schema.version_history
+  instead of: walking form.versions and hand-writing a changelog, which is a second source of truth that drifts the first time somebody is in a hurry
+  The full published history of one form — ordinal, publish time, active flag, response count and a derived one-line summary of what each version changed. Reach for it to build a version picker, or anywhere an operator needs to see whether a version is worth opening.
 ### factory
 - create_form — stapel_forms.services.create_form
   instead of: secrets.token_urlsafe, stapel_forms.models.Form.objects.create
@@ -161,7 +173,7 @@ Paths are relative to `/forms/api/v1/`.
 - POST /submissions/{submission_id}/resend — forms_api_v1_submissions_resend_create
 - GET /submissions/{submission_id} — forms_api_v1_submissions_retrieve
 
-## Error codes (75) — the StapelError envelope
+## Error codes (76) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -173,6 +185,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.400.feature_below_minimum [400] fix_input {feature}
 - error.400.feature_invalid_config [400] fix_input {feature}
 - error.400.feature_invalid_format [400] fix_input {feature}
+- error.400.feature_invalid_rules [400] fix_input {feature}
 - error.400.feature_invalid_type [400] fix_input {feature}
 - error.400.feature_mandatory_missing [400] fix_input {feature}
 - error.400.feature_not_allowed [400] fix_input {feature}

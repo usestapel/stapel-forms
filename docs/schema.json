@@ -681,6 +681,14 @@
             "description": "Keyset cursor: return responses submitted strictly before this timestamp."
           },
           {
+            "in": "query",
+            "name": "field",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Scope `q` to one question slug. An unknown slug is error.400.forms_unknown_field, never an empty page."
+          },
+          {
             "in": "path",
             "name": "form_id",
             "schema": {
@@ -695,6 +703,30 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive substring match over answer values."
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Date filter: responses submitted at or after this timestamp."
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Date filter: responses submitted at or before this timestamp."
           },
           {
             "in": "query",

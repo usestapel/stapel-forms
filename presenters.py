@@ -254,6 +254,156 @@ def present_field_kinds(*, allowed_kinds) -> FieldKindsDTO:
     )
 
 
+def dao_display(dao) -> str:
+    """The readable rendering of one stored answer DAO.
+
+    Prefers the DAO's own ``labels`` over its ``value``: a ``select``
+    stores ``["pro"]`` and carries ``["Pro"]`` beside it, and the option
+    label is what the respondent actually clicked. Reading the value
+    instead is how a review screen ends up showing machine slugs to a
+    person — the single most common complaint about raw-JSON response
+    views, and free to fix because the normalizer already wrote the label
+    down at submit time.
+    """
+    from .export import format_value
+
+    if not isinstance(dao, dict):
+        return format_value(dao)
+    labels = dao.get("labels")
+    if labels:
+        return format_value(labels)
+    return format_value(dao.get("value"))
+
+
+def present_answer_rows(submission, *, schema=None) -> List[dict]:
+    """One row per QUESTION of the answered version, in schema order.
+
+    The projection every review surface needs and none of them should
+    build twice: the admin responses table, the submission detail, and the
+    notification report all read this. Driven by the *schema*, never by
+    the answer dict, which is what buys the three properties a raw-JSON
+    view cannot have:
+
+    - **order** is the order the respondent was asked in, not dict
+      insertion order;
+    - **labels** are what the respondent saw, not storage slugs;
+    - **an unanswered question still gets a row.** A blank cell is
+      information, and dropping it silently shifts every later cell
+      against its column header — a table that lies rather than a table
+      with a gap.
+
+    ``schema`` defaults to the version this submission answered. That is
+    the version FK earning its keep: a question deleted by a later publish
+    is still the question this respondent was asked, so an old response
+    keeps rendering under the schema it answered rather than decaying into
+    orphan keys.
+    """
+    from .schema import answer_columns
+
+    if schema is None:
+        schema = submission.version.schema
+    answers = submission.answers or {}
+    rows = []
+    for slug, label in answer_columns(schema):
+        dao = answers.get(slug)
+        rows.append(
+            {
+                "slug": slug,
+                "label": label,
+                "value": dao.get("value") if isinstance(dao, dict) else dao,
+                "display": dao_display(dao),
+                # `answered` is not `bool(display)`: "false" and "0" are
+                # answers that render falsy, and a reviewer must be able to
+                # tell "said no" from "did not say".
+                "answered": slug in answers,
+            }
+        )
+    return rows
+
+
+def present_response_table(form, submissions, *, versions=None) -> dict:
+    """``{"columns": [...], "rows": [...]}`` — a whole review page at once.
+
+    The projection the version FK exists to make possible, and the one a
+    raw ``answers`` dump cannot produce. Columns are the **union across
+    every published version**, led by the CURRENT schema's order so the
+    table reads the way the form currently reads; questions that only
+    older versions had keep their column after it rather than dropping
+    out. Without the union, every answer to a since-renamed or
+    since-deleted question has nowhere to land and disappears from review
+    — which is precisely the "каша" a mutable schema would guarantee.
+
+    Each cell records ``in_schema``: whether the row's OWN version defined
+    that question. "Not asked" and "asked and left blank" are different
+    facts about a respondent and a reviewer must be able to tell them
+    apart; both render blank, only one is a gap in the data.
+
+    ``versions`` may be passed pre-fetched to keep this to one query.
+    """
+    from .schema import answer_columns
+
+    if versions is None:
+        versions = list(form.versions.all().order_by("-version"))
+
+    active_id = form.active_version_id
+    ordered = sorted(
+        versions,
+        # The active version leads, then the rest newest-first: the table's
+        # column order is "how this form reads today".
+        key=lambda v: (v.id != active_id, -v.version),
+    )
+
+    columns: List[dict] = []
+    seen = set()
+    per_version: Dict[Any, set] = {}
+    for version in ordered:
+        slugs = set()
+        for slug, label in answer_columns(version.schema):
+            slugs.add(slug)
+            if slug not in seen:
+                seen.add(slug)
+                columns.append({"slug": slug, "label": label})
+        per_version[version.id] = slugs
+
+    rows = []
+    previous_version_id = None
+    for submission in submissions:
+        answers = submission.answers or {}
+        defined = per_version.get(submission.version_id, set(answers))
+        cells = []
+        for column in columns:
+            slug = column["slug"]
+            dao = answers.get(slug)
+            cells.append(
+                {
+                    "slug": slug,
+                    "display": dao_display(dao) if slug in answers else "",
+                    "in_schema": slug in defined,
+                }
+            )
+        rows.append(
+            {
+                "submission": submission,
+                "id": str(submission.id),
+                "submitted_at": submission.submitted_at,
+                "version": submission.version.version,
+                "erased": submission.erased_at is not None,
+                "cells": cells,
+                # The ONLY place the version split surfaces: a marker on the
+                # boundary row where the schema actually changed. Not a
+                # column the reviewer has to read on every row, and never a
+                # step they must take before seeing anything.
+                "schema_changed": (
+                    previous_version_id is not None
+                    and submission.version_id != previous_version_id
+                ),
+            }
+        )
+        previous_version_id = submission.version_id
+
+    return {"columns": columns, "rows": rows}
+
+
 def present_answers(submission) -> Dict[str, Any]:
     """``{slug: value}`` from the stored DAO shapes, headers omitted."""
     answers = submission.answers or {}
@@ -314,4 +464,6 @@ __all__ = [
     "present_resend_result",
     "present_field_kinds",
     "present_answers",
+    "present_answer_rows",
+    "dao_display",
 ]

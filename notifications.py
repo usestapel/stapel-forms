@@ -79,7 +79,44 @@ def notify_targets(form) -> list:
     return targets
 
 
-def notify_submission_received(form) -> bool:
+def review_url(*, form=None, submission=None) -> str:
+    """Absolute admin link to a response (or to a form's responses).
+
+    Empty when the host has not configured ``ADMIN_BASE_URL``. Absent beats
+    broken: a relative path in an email is not a link, and a library must
+    not infer its own origin from a request whose Host header a stranger
+    controlled.
+    """
+    from django.urls import NoReverseMatch, reverse
+
+    from .conf import forms_settings
+
+    base = (forms_settings.ADMIN_BASE_URL or "").rstrip("/")
+    if not base:
+        return ""
+    try:
+        if submission is not None:
+            path = reverse("admin:forms_submission_change", args=[submission.id])
+        else:
+            path = reverse("admin:forms_form_responses", args=[form.id])
+    except NoReverseMatch:
+        # The host does not mount the Django admin. That is a legitimate
+        # deployment, and it is not a reason to fail a notification.
+        return ""
+    return f"{base}{path}"
+
+
+def answer_report(submission) -> list:
+    """The answers as labelled rows, in schema order — the email's table."""
+    from .presenters import present_answer_rows
+
+    return [
+        {"label": row["label"], "display": row["display"], "answered": row["answered"]}
+        for row in present_answer_rows(submission)
+    ]
+
+
+def notify_submission_received(form, submission=None) -> bool:
     """Auto-notify for one new submission, behind the per-form cooldown.
 
     Returns True when a letter was requested. Inside the window the
@@ -111,15 +148,29 @@ def notify_submission_received(form) -> bool:
         new_count += int(held)
         cache.delete(pending_key)
 
-    _request(
-        TYPE_SUBMISSION_RECEIVED,
-        targets,
-        {
-            "form_id": str(form.id),
-            "form_title": form.title,
-            "new_count": new_count,
-        },
-    )
+    variables = {
+        "form_id": str(form.id),
+        "form_title": form.title,
+        "new_count": new_count,
+        # Navigation, not content: always present when the host configured
+        # a base URL, whatever the disclosure setting says.
+        "review_url": review_url(form=form, submission=submission),
+    }
+
+    # The answers ride along only when the host opted in AND this letter
+    # stands for exactly ONE response. Inside the cooldown the interim
+    # submissions fold into the next letter as a count, and attaching "the
+    # answers" to a letter announcing three of them would attach one
+    # response's content under a heading claiming several — wrong rather
+    # than merely terse.
+    if (
+        forms_settings.NOTIFY_INCLUDE_ANSWERS
+        and submission is not None
+        and new_count == 1
+    ):
+        variables["answers"] = answer_report(submission)
+
+    _request(TYPE_SUBMISSION_RECEIVED, targets, variables)
     return True
 
 
@@ -130,14 +181,16 @@ def notify_resend(form, submission, targets) -> int:
     this is a directed message to an address the workspace configured,
     which is a different trust boundary from a fan-out topic.
     """
-    from .presenters import present_answers
-
     variables = {
         "form_id": str(form.id),
         "form_title": form.title,
         "submission_id": str(submission.id),
         "submitted_at": submission.submitted_at.isoformat(),
-        "answers": present_answers(submission),
+        # Labelled rows in schema order, not `{slug: value}`. The old shape
+        # was the same unreadable projection the admin had — a recipient got
+        # `plan: ["pro"]` where the respondent had clicked "Pro".
+        "answers": answer_report(submission),
+        "review_url": review_url(form=form, submission=submission),
     }
     _request(TYPE_SUBMISSION_RESEND, targets, variables)
     return len(targets)

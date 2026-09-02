@@ -167,7 +167,18 @@ no use for the builder's dictionary.
 ### Response listing and export paging
 
 Keyset, newest first: `?before=<iso8601>&limit=<n>` (`MAX_PAGE_SIZE` caps it),
-plus `?version=<n>` to restrict to one schema version. The export streams CSV
+plus `?version=<n>` to restrict to one schema version.
+
+Since 0.6.0 also `?since=` / `?until=` (a date **filter**, a different axis
+from the `before` **cursor** — narrowing a window must not reset the
+caller's position in it), and `?q=` for a case-insensitive substring match
+over answer values, optionally scoped with `?field=<slug>`. An unknown
+`field` is **400 `error.400.forms_unknown_field`**, never an empty page: an
+empty page reads as "no matches", and a typo'd question name is a different
+fact. The predicate is built from the form's published schemas
+(`services.form_answer_slugs`), not from a scan of stored answer keys, and
+an erased submission (`answers = {}`) is therefore never matched by content
+it no longer holds. The export streams CSV
 and returns its continuation cursor in the **`X-Forms-Next-Before`** response
 header — Z-suffixed, because a bare `+00:00` in a query string decodes to a
 space and the second page would silently 400.
@@ -305,6 +316,55 @@ Separately, `Submission` is declared `@access.sensitive` for the staff mandate
 (`stapel_core.access`): staff view needs MID clearance, any mutation HIGH.
 That governs Django admin and staff tooling and is orthogonal to the workspace
 capabilities above — two doors, both shut by default.
+
+### The admin is the staff door, and asks for no capability
+
+Since 0.6.0 the Django admin is a working surface rather than a peephole
+(§11), and the boundary is worth stating because it is easy to get
+backwards: **the admin is gated by Django model permissions only.** It
+never asks `workspaces.check_capability`.
+
+That is deliberate, not an omission. The capability layer answers "who in
+this workspace may do this"; a *public* form — a feedback box on a
+marketing site — has respondents who are strangers and reviewers who are
+staff, and **nobody is a member of the workspace that owns it**. Requiring
+a membership on the staff door would lock reviewers out of exactly the
+deployment shape that needs it most. So:
+
+| Door | Gated by | Serves |
+|---|---|---|
+| REST admin surface (`/forms/api/v1/...`) | `forms.*` workspace capabilities | workspace members, via `@stapel/forms-react` |
+| Django admin | model permissions from `@access` + `MandateBackend` | staff / operators |
+
+Two consequences a host should know:
+
+- the answers table is gated on the **Submission's** view permission, not
+  the Form's — gating a view of respondent PII at `forms.view_form` (LOW)
+  would be a downgrade of the `sensitive` declaration;
+- the forms changelist carries a response **count** and no answer content,
+  so `Form`-level (LOW) visibility never leaks `Submission`-level (MID)
+  data.
+
+**The mandate only bites where it is installed.** `@access.sensitive` is
+enforced by `stapel_core.access.MandateBackend`; a host running plain
+`django.contrib.auth.backends.ModelBackend` gets ordinary Django model
+permissions on these screens instead. That is a supported configuration,
+and it is why the admin gates on `ModelAdmin.has_view_permission` — correct
+under either backend — rather than reading a clearance level directly. A
+host that wants the mandate must say so:
+
+```python
+AUTHENTICATION_BACKENDS = [
+    "stapel_core.access.backend.AuditedModelBackend",   # first: carries the session
+    "stapel_core.access.backend.MandateBackend",        # authorization only, no get_user
+]
+```
+
+Order matters for a reason worth writing down: `MandateBackend` is an
+`AuthorizationOnlyBackend` and has no `get_user`, so a login that binds to
+it loses the user on the next request and every admin page redirects to the
+login screen. Django ORs `has_perm` across the chain, so putting the
+session-carrying backend first costs the mandate nothing.
 
 ---
 
@@ -459,6 +519,17 @@ promise, not a mechanism.
 5. **Register the notification types** — see the TODO below.
 6. Optionally set `DATA_PLANE_APPS` to include `forms` on an isolation-tier
    host.
+7. **Set `ADMIN_BASE_URL`** (e.g. `https://app.example.com`) if you want the
+   notification letter to carry a review link. Empty means the link is
+   omitted rather than emitted relative — a relative href in an email is not
+   a link, and a library must not infer its own origin from a request whose
+   `Host` header a submitting stranger controlled.
+8. **Decide `NOTIFY_INCLUDE_ANSWERS`** (default `False`). See §9's
+   notification section: it governs the automatic letter only, never the
+   operator-initiated resend.
+9. Hand `docs/embedding.md` to whoever is putting the form on a page. It is
+   the whole public contract — handle, both endpoints, every status code, a
+   dependency-free embed, and the throttle/captcha behaviour.
 
 ### ⚠️ TODO — notification routing (must be done by the host until the upstream lands)
 
@@ -548,7 +619,57 @@ registries client-side — not a storage backend.
 
 ---
 
-## 11. Deliberate non-goals
+## 11. The Django admin surface (0.6.0)
+
+`admin.py` registers three models and adds two views. The trust boundary is
+§4; this is what it renders.
+
+| Screen | Route | Gate |
+|---|---|---|
+| Forms list | `admin/forms/form/` | `forms.view_form` |
+| Form (builder + settings) | `admin/forms/form/<id>/change/` | view; publishing needs `change_form` |
+| **Responses table** | `admin/forms/form/<id>/responses/` | `forms.view_submission` (MID) |
+| Response detail | `admin/forms/submission/<id>/change/` | `forms.view_submission` (MID) |
+| Version (audit trail) | `admin/forms/formversion/<id>/change/` | hidden from the index, reachable by URL |
+
+**The answers table.** Columns come from the schema
+(`presenters.present_response_table`), never from the answer dicts. By
+default they are the **union across every published version**, led by the
+current schema's order, so no stored answer is left without a column to
+land in; each cell records `in_schema`, i.e. whether that row's own version
+defined the question, because "not asked" and "asked and left blank" are
+different facts about a respondent.
+
+Filters are the service's (§3), so they are the same predicate the REST
+surface uses. Paging is keyset with the filter carried in the cursor — a
+"next page" that dropped the filter would page a reviewer from a filtered
+view into an unfiltered one with no way to tell.
+
+**Versions are subordinate, not absent.** `FormVersion` is hidden from the
+app index; in the table the split appears as one marker on the boundary row
+where the schema changed. An **optional** picker defaults to the current
+schema and exists for the one case the default cannot cover: a question
+ADDED later can be shown as blank on older rows, but a question REMOVED
+later cannot be shown at all, because the current schema no longer knows
+it. Its rows come from `schema.version_history`, whose per-version summary
+is **derived** by `schema.diff_schemas` rather than authored — a
+hand-written changelog on an immutable row is a second source of truth.
+
+**The builder** publishes a new version of the same form; `public_id` is
+in somebody's HTML, so an edit may never mint a new form, and the page says
+so. What it does not contain is a field-config editor: per-kind config is
+rendered by stapel-attributes' shipped `mountConfigEditor`, reached through
+a hidden `ConfigEditorWidget` this page renders and reads the payload of —
+the same public seam `stapel-categories` uses. One catalogue, one set of
+translations, and a kind registered upstream reaches the builder with no
+release here.
+
+**This does not replace `@stapel/forms-react`.** The React pair is the
+product surface for workspace members and remains the answer wherever form
+authors *are* members; the admin is the staff surface, and a host may run
+either, both, or neither.
+
+## 12. Deliberate non-goals
 
 - **File-upload fields.** stapel-cdn refuses unattributable principals by
   design, has no service-side byte ingest, and — decisive — no auth-gated
@@ -572,7 +693,7 @@ registries client-side — not a storage backend.
 
 ---
 
-## 12. Upstream contributions this module is waiting on
+## 13. Upstream contributions this module is waiting on
 
 Recorded so they are debts rather than folklore:
 

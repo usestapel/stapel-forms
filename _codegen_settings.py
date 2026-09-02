@@ -58,6 +58,7 @@ def settings_kwargs(
             "django.contrib.auth",
             "django.contrib.sessions",
             "django.contrib.admin",
+            "django.contrib.staticfiles",
             "django.contrib.messages",
             "stapel_core.django.apps.CommonDjangoConfig",
             "stapel_core.django.users",
@@ -74,7 +75,46 @@ def settings_kwargs(
         },
         DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
         USE_TZ=True,
+        STATIC_URL="/static/",
         ROOT_URLCONF=root_urlconf,
+        # The admin surface (0.6.0) is a tested surface, so the harness has
+        # to be able to render it: templates, the session/message/auth
+        # middleware chain the admin requires, and the mandate backend that
+        # turns `@access.sensitive` into a real refusal rather than a
+        # docstring. `MandateBackend` first and `AuditedModelBackend`
+        # second mirrors the fleet's production chain — without the second
+        # entry `authenticate()` has no backend and even login fails.
+        TEMPLATES=[
+            {
+                "BACKEND": "django.template.backends.django.DjangoTemplates",
+                "APP_DIRS": True,
+                "OPTIONS": {
+                    "context_processors": [
+                        "django.template.context_processors.request",
+                        "django.contrib.auth.context_processors.auth",
+                        "django.contrib.messages.context_processors.messages",
+                    ],
+                },
+            },
+        ],
+        MIDDLEWARE=[
+            "django.contrib.sessions.middleware.SessionMiddleware",
+            "django.middleware.common.CommonMiddleware",
+            "django.contrib.auth.middleware.AuthenticationMiddleware",
+            "django.contrib.messages.middleware.MessageMiddleware",
+        ],
+        # `AuditedModelBackend` FIRST because it is the only one of the two
+        # that can carry a session: `MandateBackend` is an
+        # `AuthorizationOnlyBackend` with no `get_user`, so a `force_login`
+        # (or a real login) that binds to it loses the user on the next
+        # request and every admin page silently redirects to the login
+        # screen — a test suite that would then "pass" by asserting against
+        # an empty body. Order does not weaken the mandate: Django ORs
+        # `has_perm` across the chain, so clearance still grants.
+        AUTHENTICATION_BACKENDS=[
+            "stapel_core.access.backend.AuditedModelBackend",
+            "stapel_core.access.backend.MandateBackend",
+        ],
         CACHES={
             "default": {
                 "BACKEND": "django.core.cache.backends.locmem.LocMemCache",

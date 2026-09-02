@@ -86,6 +86,30 @@ DEFAULTS = {
     # window, with the interim count folded into the next one. Admin-
     # initiated resend is deliberately NOT subject to this (spec §11a).
     "NOTIFY_COOLDOWN_SECONDS": 600,
+    # Whether the AUTOMATIC "you have a new response" letter carries the
+    # answers themselves. Ships CLOSED, like every other switch here that
+    # widens exposure, and for the ordinary reason: answers are respondent
+    # PII and email is the least controlled channel this module touches —
+    # it leaves the deployment, lands in inboxes nobody administers, and
+    # gets forwarded. The letter always carries the fact and a deep link to
+    # review the response under the admin's own authentication, which is
+    # navigation rather than content and costs no disclosure. A host that
+    # wants the content in the mail says so here.
+    #
+    # This does NOT gate `POST /submissions/<id>/resend`: that is an
+    # authenticated operator holding `responses.manage` asking for one
+    # named response to go to one named address, which is the "send this
+    # one to legal" case, not a standing subscription.
+    "NOTIFY_INCLUDE_ANSWERS": False,
+    # Absolute base URL of the site serving the Django admin, e.g.
+    # "https://app.example.com". Used to build the review link in a
+    # notification. Empty (the default) means the link is OMITTED rather
+    # than emitted as a relative path: a relative href in an email is not a
+    # link, it is a bug report from the recipient. A library cannot know
+    # its own public origin, and guessing one from a request would put
+    # whatever Host header the submitting stranger sent into the operator's
+    # mail.
+    "ADMIN_BASE_URL": "",
 
     # ── Versioning ───────────────────────────────────────────────────
     # Strict active-version-only submits (spec §3.2 verdict 2). The grace

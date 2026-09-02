@@ -1,0 +1,127 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate "Home" %}</a>
+  &rsaquo; <a href="{% url 'admin:forms_form_changelist' %}">{% translate "Forms" %}</a>
+  &rsaquo; <a href="{% url 'admin:forms_form_change' form_obj.id %}">{{ form_obj.title }}</a>
+  &rsaquo; {% translate "Responses" %}
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+  .sf-filters { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+                padding: 12px; background: var(--darkened-bg, #f8f8f8); border-radius: 4px; margin-bottom: 16px; }
+  .sf-filters label { display: block; font-size: 11px; text-transform: uppercase; color: var(--body-quiet-color, #666); }
+  .sf-scroll { overflow-x: auto; }
+  table.sf-table { width: 100%; border-collapse: collapse; }
+  table.sf-table th, table.sf-table td { padding: 8px 10px; text-align: left; vertical-align: top;
+                                         border-bottom: 1px solid var(--hairline-color, #eee); font-size: 13px; }
+  table.sf-table th { white-space: nowrap; font-weight: 600; }
+  table.sf-table td.sf-not-asked { background: repeating-linear-gradient(45deg,
+      transparent, transparent 4px, var(--hairline-color, #f0f0f0) 4px, var(--hairline-color, #f0f0f0) 8px); }
+  .sf-changed td { border-top: 2px solid var(--link-fg, #417690); }
+  .sf-changed-note { font-size: 11px; color: var(--link-fg, #417690); padding: 2px 10px; }
+  .sf-erased { color: #999; font-style: italic; }
+  .sf-empty { padding: 32px; text-align: center; color: var(--body-quiet-color, #666); }
+</style>
+
+<h1>{{ title }}</h1>
+
+<form class="sf-filters" method="get">
+  <div>
+    <label for="sf-since">{% translate "From" %}</label>
+    <input type="date" id="sf-since" name="since" value="{{ filter_since }}">
+  </div>
+  <div>
+    <label for="sf-until">{% translate "To" %}</label>
+    <input type="date" id="sf-until" name="until" value="{{ filter_until }}">
+  </div>
+  <div>
+    <label for="sf-q">{% translate "Contains" %}</label>
+    <input type="search" id="sf-q" name="q" value="{{ filter_q }}" placeholder="{% translate 'any answer text' %}">
+  </div>
+  <div>
+    <label for="sf-field">{% translate "In question" %}</label>
+    <select id="sf-field" name="field">
+      <option value="">{% translate "any question" %}</option>
+      {% for slug in field_choices %}
+        <option value="{{ slug }}"{% if slug == filter_field %} selected{% endif %}>{{ slug }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% if history|length > 1 %}
+  <div>
+    <label for="sf-version">{% translate "Schema" %}</label>
+    <select id="sf-version" name="version">
+      <option value="">{% translate "current" %}</option>
+      {% for entry in history %}
+        <option value="{{ entry.version }}"{% if entry.version == pinned_version %} selected{% endif %}>
+          v{{ entry.version }} · {{ entry.published_at|date:"Y-m-d" }} · {{ entry.submission_count }}
+          {% if entry.summary %}· {{ entry.summary }}{% endif %}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <div>
+    <button type="submit" class="default">{% translate "Filter" %}</button>
+    <a href="{{ request.path }}" class="button">{% translate "Reset" %}</a>
+  </div>
+</form>
+
+{% if pinned_version %}
+  <p class="help" style="margin:-8px 0 16px">
+    {% blocktranslate %}Showing responses to schema v{{ pinned_version }}, under the columns that version defined — including questions later removed. Switch back to “current” for every response at once.{% endblocktranslate %}
+  </p>
+{% endif %}
+
+{% if invalid_field %}
+  <p class="errornote">
+    {% blocktranslate %}No question called “{{ invalid_field }}” has ever been published on this form.{% endblocktranslate %}
+  </p>
+{% endif %}
+
+<div class="sf-scroll">
+  <table class="sf-table">
+    <thead>
+      <tr>
+        <th>{% translate "Submitted" %}</th>
+        {% for column in columns %}<th>{{ column.label }}</th>{% endfor %}
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        {% if row.schema_changed %}
+          <tr><td class="sf-changed-note" colspan="{{ columns|length|add:2 }}">
+            {% translate "— schema changed above this point —" %}
+          </td></tr>
+        {% endif %}
+        <tr{% if row.schema_changed %} class="sf-changed"{% endif %}>
+          <td style="white-space:nowrap">{{ row.submitted_at|date:"Y-m-d H:i" }}</td>
+          {% for cell in row.cells %}
+            <td{% if not cell.in_schema %} class="sf-not-asked" title="{% translate 'This question did not exist in the version this person answered.' %}"{% endif %}>{{ cell.display }}</td>
+          {% endfor %}
+          <td style="white-space:nowrap">
+            {% if row.erased %}<span class="sf-erased">{% translate "erased" %}</span>{% endif %}
+            <a href="{% url 'admin:forms_submission_change' row.id %}">{% translate "open" %}</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td class="sf-empty" colspan="{{ columns|length|add:2 }}">
+          {% translate "No responses match these filters." %}
+        </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if has_next %}
+  <p style="margin-top:16px"><a class="button" href="{{ next_url }}">{% translate "Next page" %} &rsaquo;</a></p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "admin/change_form.html" %}
+{% load i18n static %}
+
+{% block after_field_sets %}
+{{ block.super }}
+{% if builder_payload %}
+  <div id="stapel-forms-builder" class="module aligned">
+    <h2>{% translate "Questions" %}</h2>
+    <p class="help">
+      {% translate "Saving here publishes a NEW VERSION of this same form. Its public link does not change, and old responses stay readable under the schema they answered." %}
+    </p>
+    <div id="stapel-forms-builder-mount"></div>
+    <noscript>
+      <p class="errornote">{% translate "The question builder needs JavaScript. The API remains available." %}</p>
+    </noscript>
+  </div>
+
+  {# The shipped stapel-attributes editor, rendered with no value: it draws
+     nothing and publishes the declarations + locale + message catalogues
+     the builder reads. See FormAdmin.render_change_form. #}
+  <div style="display:none">{{ attributes_probe }}</div>
+
+  {{ builder_payload|json_script:"stapel-forms-builder-data" }}
+  <script src="{% static 'stapel_forms/forms-builder.js' %}" defer></script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{% load i18n %}
+{% if erased %}
+  <p style="color:#999;font-style:italic">
+    {% translate "The answers were erased. The row is kept so response counts stay truthful." %}
+  </p>
+{% endif %}
+<table style="border-collapse:collapse;min-width:480px">
+  <tbody>
+    {% for row in rows %}
+      <tr>
+        <th style="text-align:left;padding:6px 12px 6px 0;vertical-align:top;
+                   border-bottom:1px solid #eee;font-weight:600;white-space:nowrap">
+          {{ row.label }}
+        </th>
+        <td style="padding:6px 0;border-bottom:1px solid #eee;white-space:pre-wrap">
+          {% if row.answered %}{{ row.display }}{% else %}<span style="color:#bbb">{% translate "— not answered —" %}</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p style="color:#666;font-size:11px;margin-top:8px">
+  {% blocktranslate %}Rendered against schema v{{ version }} — the version this person answered.{% endblocktranslate %}
+</p>

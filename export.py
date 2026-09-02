@@ -25,12 +25,41 @@ import io
 _FORMULA_LEAD = ("=", "+", "-", "@", "\t", "\r")
 
 
-def escape_cell(value) -> str:
-    """Render a stored answer value as a CSV-safe string."""
+def format_value(value) -> str:
+    """Render a stored answer value as a readable string, without escaping.
+
+    Split out of :func:`escape_cell` in 0.6.0 because the CSV was not the
+    only consumer any more: the admin's responses table and the
+    notification report need the same rendering and must NOT get the
+    spreadsheet guard — a leading apostrophe is protection in a cell and a
+    typo in an email. Keeping one renderer is what stops "true"/"True"/
+    "Yes" drifting apart across three surfaces.
+    """
     if value is None:
         return ""
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(format_value(v) for v in value)
+    if isinstance(value, dict):
+        return ", ".join(f"{k}={format_value(v)}" for k, v in value.items())
+    return str(value)
+
+
+def escape_cell(value) -> str:
+    """Render a stored answer value as a CSV-safe string.
+
+    The guard recurses on purpose. A list renders as ``a, =b`` and only the
+    OUTER string starts with ``a`` — escaping just that would hand the
+    spreadsheet ``=b`` intact, which some parsers evaluate after splitting
+    on the comma. So every element is escaped as it is rendered, not the
+    joined result. (`format_value` deliberately does not do this: an
+    apostrophe is protection in a cell and a typo in an email.)
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return format_value(value)
     if isinstance(value, (list, tuple)):
         text = ", ".join(escape_cell(v) for v in value)
     elif isinstance(value, dict):

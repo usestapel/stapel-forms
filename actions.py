@@ -154,14 +154,21 @@ def handle_user_merged(event):
 @on_action(FORM_SUBMISSION_RECEIVED)
 def handle_submission_received(event):
     """Notify the form's configured recipients, behind the cooldown."""
-    from .models import Form
+    from .models import Form, Submission
     from .notifications import notify_submission_received
 
     form_id = event.payload.get("form_id")
     form = Form.objects.filter(id=form_id).first()
     if form is None:
         return
-    notify_submission_received(form)
+    # The event carries ids only (outbox canon: answers never ride the bus).
+    # The row is fetched here, inside the subscriber, so the report can be
+    # built from storage under this service's own authority rather than
+    # from a payload a fan-out topic delivered to every subscriber.
+    submission = Submission.objects.filter(
+        id=event.payload.get("submission_id")
+    ).select_related("version").first()
+    notify_submission_received(form, submission)
 
 
 __all__ = [

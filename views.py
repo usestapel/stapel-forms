@@ -631,6 +631,25 @@ class FormSubmissionListView(AdminAPIView):
                 name="version", type=int, location=OpenApiParameter.QUERY, required=False,
                 description="Restrict to responses answering this schema version.",
             ),
+            OpenApiParameter(
+                name="since", type=str, location=OpenApiParameter.QUERY, required=False,
+                description="Date filter: responses submitted at or after this timestamp.",
+            ),
+            OpenApiParameter(
+                name="until", type=str, location=OpenApiParameter.QUERY, required=False,
+                description="Date filter: responses submitted at or before this timestamp.",
+            ),
+            OpenApiParameter(
+                name="q", type=str, location=OpenApiParameter.QUERY, required=False,
+                description="Case-insensitive substring match over answer values.",
+            ),
+            OpenApiParameter(
+                name="field", type=str, location=OpenApiParameter.QUERY, required=False,
+                description=(
+                    "Scope `q` to one question slug. An unknown slug is "
+                    "error.400.forms_unknown_field, never an empty page."
+                ),
+            ),
         ],
         responses={200: SubmissionSerializer(many=True)},
     )
@@ -647,6 +666,10 @@ class FormSubmissionListView(AdminAPIView):
             before=query.validated_data.get("before"),
             limit=query.validated_data.get("limit"),
             version=query.validated_data.get("version"),
+            since=query.validated_data.get("since"),
+            until=query.validated_data.get("until"),
+            q=query.validated_data.get("q"),
+            field=query.validated_data.get("field"),
         )
         presenter = get_submission_presenter()
         return StapelResponse(

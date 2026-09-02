@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-forms"
-version = "0.5.0"
+version = "0.6.0"
 description = "Admin-defined forms, anonymous submissions and response review for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -94,6 +94,15 @@ stapel_forms = [
     "schemas/**/*.json",
     "translations/*.json",
     "translations/.state.json",
+    # The admin surface (0.6.0). Django finds these through APP_DIRS /
+    # AppDirectoriesFinder, i.e. by walking the INSTALLED package — so a
+    # wheel that omits them installs an admin that raises
+    # TemplateDoesNotExist on first use, and does so only in a real
+    # deployment, never in a source checkout where the files are on disk
+    # anyway. `tests/test_packaging.py` is the gate that this list stays
+    # complete.
+    "templates/admin/forms/*.html",
+    "static/stapel_forms/*.js",
 ]
 
 [tool.ruff]
