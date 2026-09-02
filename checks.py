@@ -119,6 +119,50 @@ def check_gdpr_declaration(app_configs, **kwargs):
     )]
 
 
+@checks.register(checks.Tags.compatibility)
+def check_builder_assets(app_configs, **kwargs):
+    """W004: the admin builder's config editors cannot load.
+
+    The per-kind config editor in the admin form builder is
+    stapel-attributes' shipped ``attributes-admin.js``. stapel-attributes is
+    an EMBEDDED library rather than a Django app — it is imported directly
+    and never listed in ``INSTALLED_APPS`` — so ``AppDirectoriesFinder``
+    does not walk it and ``collectstatic`` never sees the file. The host has
+    to name the directory, exactly as the fleet already does for
+    ``stapel_core/static``.
+
+    This gets a check rather than a docs line because of how it fails: the
+    builder still renders. Fields, order, labels, required flags and
+    publishing all work; only the CONFIG editor is missing. An author sees a
+    builder that looks complete, adds a ``select``, and finds nowhere to
+    type the options — with nothing logged and nothing raised.
+    """
+    from django.contrib.staticfiles import finders
+
+    try:
+        found = finders.find("stapel_attributes/attributes-admin.js")
+    except Exception:  # noqa: BLE001 - a misconfigured finder is not our error to raise
+        return []
+    if found:
+        return []
+    return [checks.Warning(
+        "The stapel-attributes admin bundle is not findable by staticfiles, "
+        "so the form builder's per-kind config editors will not load. The "
+        "builder still renders and publishes; a field's options, min/max and "
+        "other type settings simply cannot be edited, silently.",
+        hint=(
+            "stapel-attributes is an embedded library, not an app, so "
+            "AppDirectoriesFinder skips it. Add its static directory to "
+            "STATICFILES_DIRS (the same treatment stapel_core/static gets):\n"
+            "    import pathlib, stapel_attributes\n"
+            "    STATICFILES_DIRS = [..., "
+            "str(pathlib.Path(stapel_attributes.__file__).parent / 'static')]\n"
+            "then re-run collectstatic."
+        ),
+        id="stapel_forms.W004",
+    )]
+
+
 def _has_open_forms() -> bool:
     """True when at least one live form is accepting public submissions.
 

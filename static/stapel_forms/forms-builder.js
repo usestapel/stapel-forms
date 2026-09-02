@@ -236,6 +236,28 @@
     return box;
   }
 
+  // Set once the stapel-attributes bundle fails to load, so the page SAYS
+  // the config editors are missing instead of just drawing fewer controls.
+  // Silent degradation is the exact failure this release argues against:
+  // the builder would look complete while a `select` had nowhere to type
+  // its options. `stapel_forms.W004` is the server-side half of this.
+  var configEditorUnavailable = false;
+
+  function reportConfigEditorUnavailable() {
+    if (configEditorUnavailable) return;
+    configEditorUnavailable = true;
+    var note = el("p", {
+      class: "errornote",
+      text:
+        "The field-type settings editor could not be loaded, so per-field " +
+        "options (choices, min/max, length limits) cannot be edited here. " +
+        "Everything else on this page works. This is a deployment issue: " +
+        "the stapel-attributes admin bundle is not being served — see the " +
+        "stapel_forms.W004 system check.",
+    });
+    mount.insertBefore(note, mount.firstChild);
+  }
+
   function mountConfig(host, field) {
     var kind = (field.config || {}).type;
     var declaration = declarations[kind];
@@ -244,7 +266,10 @@
     }
     import(payload.attributesBundle)
       .then(function (mod) {
-        if (!mod || !mod.mountConfigEditor) return;
+        if (!mod || !mod.mountConfigEditor) {
+          reportConfigEditorUnavailable();
+          return;
+        }
         mod.mountConfigEditor(host, {
           declaration: declaration,
           slug: kind,
@@ -262,7 +287,10 @@
         });
       })
       .catch(function () {
-        /* The fallback is the rest of the builder, which still works. */
+        // The rest of the builder still works — but say so, do not just
+        // render fewer controls and let an author conclude the product
+        // has no options editor.
+        reportConfigEditorUnavailable();
       });
   }
 

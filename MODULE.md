@@ -664,6 +664,26 @@ the same public seam `stapel-categories` uses. One catalogue, one set of
 translations, and a kind registered upstream reaches the builder with no
 release here.
 
+**One host requirement the builder has.** Its per-kind config editor is
+stapel-attributes' `attributes-admin.js`, and stapel-attributes is an
+*embedded* library rather than a Django app — `AppDirectoriesFinder` never
+walks it, so `collectstatic` does not pick the bundle up and the editors
+silently do not mount (everything else in the builder keeps working). Name
+the directory, the same treatment `stapel_core/static` already gets:
+
+```python
+import pathlib, stapel_attributes
+
+STATICFILES_DIRS = [
+    ...,
+    str(pathlib.Path(stapel_attributes.__file__).parent / "static"),
+]
+```
+
+`stapel_forms.W004` fires while that is missing, and the builder renders a
+notice in the page rather than just drawing fewer controls — the failure is
+invisible otherwise, which is exactly why it gets a check.
+
 **This does not replace `@stapel/forms-react`.** The React pair is the
 product surface for workspace members and remains the answer wherever form
 authors *are* members; the admin is the staff surface, and a host may run

@@ -1,4 +1,4 @@
-# stapel-forms 0.6.1
+# stapel-forms 0.6.2
 
 Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.
 

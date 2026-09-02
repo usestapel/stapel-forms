@@ -23,6 +23,15 @@ directly by the harness.
 from __future__ import annotations
 
 
+def _attributes_static_dir() -> str:
+    """The static/ directory inside the installed stapel-attributes."""
+    import pathlib
+
+    import stapel_attributes
+
+    return str(pathlib.Path(stapel_attributes.__file__).resolve().parent / "static")
+
+
 def settings_kwargs(
     *,
     root_urlconf: str = "stapel_forms.tests.urls",
@@ -76,6 +85,14 @@ def settings_kwargs(
         DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
         USE_TZ=True,
         STATIC_URL="/static/",
+        # stapel-attributes is an EMBEDDED library, not a Django app, so
+        # `AppDirectoriesFinder` never walks it and its shipped admin bundle
+        # — the builder's per-kind config editor — is invisible to
+        # staticfiles unless the directory is named. This is the remedy
+        # `stapel_forms.W004` tells a host to apply, applied here so the
+        # module's own harness is a correctly configured deployment rather
+        # than one that quietly demonstrates the defect.
+        STATICFILES_DIRS=[_attributes_static_dir()],
         ROOT_URLCONF=root_urlconf,
         # The admin surface (0.6.0) is a tested surface, so the harness has
         # to be able to render it: templates, the session/message/auth

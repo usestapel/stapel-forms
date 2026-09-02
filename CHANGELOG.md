@@ -6,6 +6,39 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-09-03
+
+### Added — `stapel_forms.W004`: the builder's config editors are not being served
+
+Found by deploying 0.6.1 and looking at the page, which is the only way it
+could have been found.
+
+The builder's per-kind config editor (a `select`'s options, an `int`'s
+min/max, a `string`'s length cap) is stapel-attributes' shipped
+`attributes-admin.js`. **stapel-attributes is an embedded library, not a
+Django app** — it is imported directly and never listed in
+`INSTALLED_APPS` — so `AppDirectoriesFinder` does not walk it,
+`collectstatic` never sees the file, and the bundle 404s. The fleet
+already treats `stapel_core/static` this way for the same reason; nothing
+said the attributes bundle needed it too.
+
+What made it worth a check rather than a docs line is the shape of the
+failure. **The builder still renders.** Fields, order, labels, required
+flags, add/remove/reorder and publishing all work. Only the config editor
+is missing — so an author sees a builder that looks complete, adds a
+`select`, and finds nowhere to type the options. Nothing raises, nothing
+logs, and every other signal says the deployment is fine.
+
+- **`stapel_forms.W004`** fires when
+  `finders.find("stapel_attributes/attributes-admin.js")` comes back empty,
+  and its hint carries the exact `STATICFILES_DIRS` entry that fixes it.
+- **The builder says so in the page too.** A failed bundle import now
+  renders an `errornote` naming the missing editor, what still works, and
+  the check id — instead of quietly drawing fewer controls.
+- **The module's own harness applies the remedy** (`STATICFILES_DIRS` in
+  `_codegen_settings`), so the test suite runs as a correctly configured
+  deployment and a dedicated test forces the failure path.
+
 ## [0.6.1] — 2026-09-03
 
 ### Fixed — three bugs the first live render of 0.6.0 exposed
