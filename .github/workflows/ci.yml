@@ -20,6 +20,67 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      - name: Install
+        # Editable on purpose: tests/ imports resolve against the source
+        # tree (stapel_forms.tests), which a non-editable install does not
+        # ship — plain `pip install .` made every CI run red from day one
+        # while the local suite was green.
+        run: pip install -e ".[all]" || pip install -e .
+
+      - name: Lint
+        run: |
+          pip install ruff --quiet
+          ruff check . --select E,F,W --ignore E501
+
+      - name: Import check
+        run: python -c "import stapel_forms; print('import OK')"
+
+      - name: Install test dependencies
+        # stapel-tools: tests/test_contract.py drives the contract emitters
+        # (llms_txt, readme) and fails on ModuleNotFound without it.
+        run: pip install pytest pytest-django pytest-cov "stapel-tools>=0.26.0"
+
+      - name: Tests with coverage
+        run: |
+          pytest tests/ \
+            --cov=stapel_forms \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --junitxml=junit.xml \
+            -o junit_family=legacy \
+            -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        with:
+          files: coverage.xml
+          flags: stapel-forms
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results to Codecov
+        uses: codecov/test-results-action@v1
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  core-main:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
       - name: Install stapel-core
         run: pip install git+https://github.com/usestapel/stapel-core.git
 
