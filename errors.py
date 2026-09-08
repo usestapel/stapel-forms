@@ -12,11 +12,23 @@ refusal (``services.submit`` re-raises ``field_errors[0].code``). Those
 keys are registered — and translated — by stapel-attributes; this module
 only makes sure the registration RUNS wherever forms is mounted, so the
 emitted ``docs/errors.json`` lists every key this API can actually return.
+
+Registering a key here and leaving its sentences behind is the failure this
+module shipped for five releases: the codes reached a host's canon and
+their ru/es strings did not, so seven of them rendered the English floor on
+a translated screen. The cure is NOT to copy the strings — a key another
+package owns, translated here, is an ``error``-level ``foreign`` issue in
+core's catalog gate and a second copy of wording that upstream is free to
+change. It is the dependency floors: ``stapel-attributes>=0.9.3`` is the
+first wheel that carries ``translations/errors.{ru,es}.json``, and
+``stapel-core>=0.60.8`` is the first loader that looks inside a registered
+error owner that is not an installed app. ``tests/test_error_i18n.py``
+holds both ends.
 """
 from stapel_core.django.api.errors import ErrorKeysView, register_service_errors
 
 # stapel-attributes is an embedded (non-app) library: autodiscovery never
-# reaches its errors module, so without this import its 12 feature-validation
+# reaches its errors module, so without this import its 13 feature-validation
 # keys enter the registry only as a side effect of serializer imports —
 # errors.json emission then depends on whether the schema was built first.
 # The embedding app forces the registration deterministically. Same line as

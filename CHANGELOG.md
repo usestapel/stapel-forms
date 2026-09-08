@@ -6,6 +6,82 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+## [0.6.3] — 2026-09-08
+
+### Fixed — the codes travelled to the host, their translations did not
+
+Patch (pre-1.0: minor = breaking, patch = compatible). No API change, no
+schema change: `docs/errors.json` still carries the same 76 keys with the
+same owners. What changes is the range of dependency versions a host may
+resolve underneath them.
+
+Measured on a live deployment: seven codes rendered their **English** text
+on both the Russian and the Spanish build of a front end — all seven owned
+by `stapel_attributes`.
+
+```
+error.400.description_too_long      error.400.description_too_short
+error.400.feature_invalid_config    error.400.feature_invalid_rules
+error.400.feature_not_allowed       error.400.feature_unknown
+error.400.feature_unknown_type
+```
+
+`errors.py` imports `stapel_attributes.errors` on purpose (0.1.0): the
+submit path re-raises that library's per-field validation codes at the top
+level of a refusal, so a consumer that never saw them could not render the
+errors a respondent is most likely to hit. That import is what puts thirteen
+`stapel_attributes`-owned codes into the error registry — and into the
+`docs/errors.json` — of every host that mounts this module. **The registry
+travelled; the strings did not.** Nothing here or upstream connected the two,
+and every gate stayed green because each one was scoped to the keys its own
+package owns.
+
+The fix is not a copy. A key another package owns, translated in this
+package's catalog while the owner ships that language, is an `error`-level
+`foreign` issue in `check_translation_catalogs` — it is the duplication that
+had five libraries each maintaining the same 41 core keys, and it makes this
+repo the maintainer of a second version of somebody else's wording that goes
+stale the day upstream improves it. The strings stay owned by
+`stapel-attributes` and reach a host from its wheel; what was wrong was that
+this package let a host install a wheel where they are absent.
+
+- **`stapel-attributes>=0.9.3`** (was `>=0.4.6`) — 0.9.3 is the first wheel
+  containing `stapel_attributes/translations/errors.{ru,es}.json` with all
+  thirteen owned keys. Every release the old floor admitted — 0.4.6 through
+  0.9.2 — ships `errors.py` and no `translations/` directory at all.
+- **`stapel-core>=0.60.8`** (was `>=0.47.0`) — 0.60.8's
+  `catalog_search_dirs()` walks the package directory of every registered
+  error owner, not only `INSTALLED_APPS`. stapel-attributes has no Django
+  app; a host never lists it, so on every earlier core its catalog was
+  unreachable however complete it was. (0.9.3 requires this core itself, so
+  the two floors are one decision; both are named because the reason differs.)
+
+### Added — `tests/test_error_i18n.py`, the gate this module never had
+
+Its sibling modules gate the keys they *own*. That gate was green throughout
+the incident, which is the whole point: the codes at fault belong to somebody
+else. So the coverage assertion here is deliberately wider — **every code in
+this module's registry has a string in every language it ships, whoever owns
+the code** — resolved through `load_app_catalogs`, the same merge a
+deployment renders from.
+
+Against the previous floor (`stapel-attributes==0.4.6`) it reports twelve
+codes with no `ru` string, each named with its owner. Three more tests hold
+the shape of the fix: the declared floors admit only versions that ship the
+strings (the half the installed-closure test cannot see, because pip installs
+the newest); each upstream owner's installed wheel actually carries its own
+catalog; and `check_translation_catalogs` reports no `foreign` key here — so
+a future "fix" that closes a coverage gap by copying goes red instead.
+
+### Note for a consumer that reads wheels rather than running Django
+
+A host that renders errors through stapel-core gets all seven strings after
+this release with no host-side change. A generator that instead materializes
+the wheels named in its own requirements files sees only libraries it pins
+directly — `stapel-attributes` is transitive — so it needs either an explicit
+pin or, better, to follow the `owner` field `docs/errors.json` already
+carries on every entry.
+
 ## [0.6.2] — 2026-09-03
 
 ### Added — `stapel_forms.W004`: the builder's config editors are not being served

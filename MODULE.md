@@ -185,8 +185,8 @@ space and the second page would silently 400.
 
 ### Error keys — owned vs. surfaced
 
-`docs/errors.json` carries **75** keys: 42 core-owned, 21 owned here, and the
-12 `error.400.feature_*` / `error.400.description_*` keys owned by
+`docs/errors.json` carries **76** keys: 42 core-owned, 21 owned here, and the
+13 `error.400.feature_*` / `error.400.description_*` keys owned by
 **stapel-attributes**. That last group is not decoration — per-field answer
 validation *is* the attributes pipeline, so `POST /public/<id>/submissions/`
 puts one of those codes at the top level of a per-field refusal (plus the
@@ -214,12 +214,27 @@ the English strings into this module's registry instead would have taken on a
 catalogue obligation that is upstream's — `tests/test_contract.py` asserts the
 `owner` field so that mistake goes red.
 
-Consequence, stated rather than hidden: stapel-attributes ships **no**
-`translations/errors.<lang>.json`, so emission prints
-`[warning:unshipped] 'stapel_attributes' owns 12 declared code(s) but ships no
-errors catalog in any language`. The keys are declared and English-covered;
-localizing them is an upstream contribution (§12.6), and until it lands a
-frontend bundle either falls back to English or carries its own strings.
+**The re-export has a second half, and 0.6.3 is where it got wired.** A code
+in the registry with no sentence behind it renders its English floor, and for
+five releases that is exactly what these thirteen did on a translated
+deployment. The strings are upstream's — copying them here would be an
+`error`-level `foreign` issue in core's catalog gate and a second copy of
+wording stapel-attributes is free to change — so what makes them arrive is
+the pair of floors: **stapel-attributes >= 0.9.3**, the first wheel carrying
+`translations/errors.{ru,es}.json` for all thirteen keys, and
+**stapel-core >= 0.60.8**, the first loader whose `catalog_search_dirs()`
+walks the package directory of a registered error owner that is not an
+installed app (which stapel-attributes, being embedded, never is).
+`tests/test_error_i18n.py` asserts the whole registry is covered in every
+shipped language *whoever owns the code* — the assertion the per-package
+ownership gates cannot make — and that the floors admit only versions where
+that stays true.
+
+A consumer that materializes wheels from its own requirement pins rather than
+running Django still has to reach stapel-attributes somehow: it is a
+transitive dependency, so nothing pins it directly. Following the `owner`
+field on every `docs/errors.json` entry is the general answer; an explicit
+pin is the local one.
 
 An alternative exists for a host that would rather not rely on the import:
 `settings.STAPEL_ERROR_MODULES = ["stapel_attributes.errors"]`, which
@@ -766,8 +781,8 @@ Recorded so they are debts rather than folklore:
    stapel-tools change; faking it with prose in `capabilities.meta.json`
    would be a second hand-kept copy of exactly the table this release
    stopped hand-keeping.
-7. **`translations/errors.<lang>.json` in stapel-attributes.** It owns 12
-   keys this module's API returns and ships catalogues for none of them, so
-   `make contract` warns `unshipped` on every emission and a localized
-   deployment renders that family in English (§3). The strings exist in the
-   React pair's hand-authored ru/es bundles; upstreaming them is the fix.
+7. ~~**`translations/errors.<lang>.json` in stapel-attributes.**~~ —
+   **landed** in stapel-attributes **0.9.3**: all thirteen owned keys in ru
+   and es, authored upstream rather than copied down from the React pair's
+   bundles. This module's 0.6.3 floors (§3) are what make them reachable;
+   `make contract` no longer warns `unshipped`.

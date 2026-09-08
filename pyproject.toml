@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-forms"
-version = "0.6.2"
+version = "0.6.3"
 description = "Admin-defined forms, anonymous submissions and response review for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -40,19 +40,42 @@ dependencies = [
     # module load. 0.31.0 remains the reason the resend path can address a
     # telegram chat directly (`request_notification(telegram_chat_id=...)`),
     # and 0.26 supplied docs/errors.json's `owner` field the drift gate needs.
-    "stapel-core>=0.47.0,<1.0",
+    #
+    # Floor 0.60.8: `catalog_search_dirs()` walks the package directory of
+    # every registered error owner, not only INSTALLED_APPS. This module puts
+    # thirteen `stapel_attributes`-owned codes into the registry of every host
+    # that mounts it (errors.py forces the registration), and stapel-attributes
+    # has no Django app — a host never lists it. On 0.47…0.60.7 the loader
+    # therefore could not reach the catalog that wheel ships, however complete
+    # it was, and those codes rendered their English floor on an otherwise
+    # translated screen. `tests/test_error_i18n.py` is the gate; at the old
+    # floor it reports twelve codes with no ru string.
+    "stapel-core>=0.60.8,<1.0",
     # The one extra runtime dependency (spec §9): the schema of a form IS a
     # list of stapel-attributes FeatureDefs, and submissions are validated
     # and normalized by its pipeline. An L1 library, imported directly —
     # not a Django app, nothing to add to INSTALLED_APPS.
     #
-    # Floor 0.4.6: `StringConfig.multiline` is the textarea-vs-input hint the
+    # Floor 0.4.6 was `StringConfig.multiline`, the textarea-vs-input hint the
     # `/field-kinds` catalogue publishes and the React pair's `string` widget
     # reads. On 0.4.5 the key does not exist, so a form authored with it would
     # be refused by this module's own unknown-config-key gate — a red publish,
     # not a graceful degrade. 0.4.6 also added `FeatureValidationResult.
     # warnings` (see MODULE.md §5 on why nothing here surfaces them).
-    "stapel-attributes>=0.4.6,<1.0",
+    #
+    # Floor 0.9.3 is about the OTHER half of what this module imports from
+    # here. `errors.py` re-exports this library's error CODES into the host's
+    # registry on purpose — the submit path returns them at the top level of a
+    # refusal, so a consumer that did not see them could not render the errors
+    # a respondent is most likely to hit. The strings for those codes are
+    # upstream's to own and upstream's to ship, and 0.9.3 is the first wheel
+    # that actually contains them (`translations/errors.{ru,es}.json`, all
+    # thirteen keys): 0.4.6 through 0.9.2 ship `errors.py` and no
+    # `translations/` directory at all. Pinning the floor here is how the
+    # strings travel with the codes without this package copying them — a copy
+    # would be an `error`-level `foreign` issue in core's catalog gate and a
+    # second, drifting version of somebody else's wording.
+    "stapel-attributes>=0.9.3,<1.0",
 ]
 
 [project.urls]
