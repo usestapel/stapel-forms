@@ -201,8 +201,8 @@ class TestSensitiveStaysSensitive:
         layer gates the REST product surface and must never leak into here
         — a staff reviewer holding table permissions has no membership in
         the workspace that owns the form, and blocking them on one would
-        make the admin unusable for exactly the deployment shape ironmemo
-        runs (a public feedback form nobody is a "member" of).
+        make the admin unusable for exactly the deployment shape a client
+        fleet runs (a public feedback form nobody is a "member" of).
 
         Nothing in the fixture grants a capability; the table must render.
         """

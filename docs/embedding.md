@@ -26,8 +26,8 @@ Two properties worth knowing before you paste it into a page:
   which is exactly what you want after a leak and exactly what you do not
   want by accident. **Anything embedded in a page you cannot redeploy
   quickly should use a stable, memorable handle instead** — a host may set
-  `public_id` to a readable slug (ironmemo's feedback form is literally
-  `ironmemo-feedback`).
+  `public_id` to a readable slug (a host's feedback form is literally
+  `acme-feedback`).
 
 ---
 
@@ -39,7 +39,7 @@ GET https://<your-host>/forms/api/v1/public/<public_id>/
 
 ```jsonc
 {
-  "public_id": "ironmemo-feedback",
+  "public_id": "acme-feedback",
   "version_id": "9aa1b2c3-...",     // echo this back on submit
   "version": 3,
   "fields": [
@@ -154,7 +154,7 @@ No framework, no build step. Drop this in a page, set the two constants.
 <script>
 (async function () {
   const BASE = "https://app.example.com/forms/api/v1";
-  const PUBLIC_ID = "ironmemo-feedback";
+  const PUBLIC_ID = "acme-feedback";
 
   const root = document.getElementById("stapel-form");
   const res = await fetch(`${BASE}/public/${PUBLIC_ID}/`);
