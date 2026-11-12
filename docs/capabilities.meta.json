@@ -48,6 +48,11 @@
       "name": "serializer_seams",
       "kind": "class_override",
       "summary": "Every view declares request/response serializer seams (SerializerSeamMixin) — subclass the view, override the attribute, remount the URL."
+    },
+    {
+      "name": "forms.form.exists",
+      "kind": "comm_function",
+      "summary": "Provided Function: {public_id} -> {exists, published}; published = served as fillable (open with an active version); no form content returned — for validating a stored form reference at save time (functions.py, MODULE.md §6)."
     }
   ],
   "axes": {

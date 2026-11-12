@@ -463,9 +463,14 @@ survivor with no user row here yet raises `MergeTargetNotReady` so the outbox
 redelivers instead of marking the answers delivered-and-lost; a malformed id is
 logged and ACKed. Idempotent.
 
-Provided comm Functions: **none** in v1. `forms.get_schema` has no consumer
-today — the renderer uses HTTP and so can a server-side caller. `functions.py`
-exists so the first real one has an obvious home.
+Provided comm Functions (`functions.py`, schemas under `schemas/functions/`):
+
+| Function | Contract |
+|---|---|
+| `forms.form.exists` | `{public_id}` -> `{exists, published}`. `exists` is false for an unknown, rotated-away or soft-deleted handle; `published` is true only when the public surface serves the form as fillable (state `open` with an active version) — draft and closed answer `false`. Nothing else leaves it (no title, schema or workspace), so it is safe for another module to validate a stored form reference at save time (a CMS `form` block) |
+
+`forms.get_schema` is still not a Function: the renderer uses HTTP and so can
+a server-side caller.
 
 ---
 

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "forms.form.exists",
+  "description": "Whether a public form handle names a form and whether the public surface serves it as fillable. Output ($defs.result): {exists: bool, published: bool}. exists is false for an unknown or soft-deleted form; published is true only for state open with an active version (draft and closed answer false). No form content is returned.",
+  "type": "object",
+  "properties": {
+    "public_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "description": "The form's public handle (Form.public_id)."
+    }
+  },
+  "required": ["public_id"],
+  "additionalProperties": false,
+  "$defs": {
+    "result": {
+      "type": "object",
+      "properties": {
+        "exists": { "type": "boolean" },
+        "published": { "type": "boolean" }
+      },
+      "required": ["exists", "published"],
+      "additionalProperties": false
+    }
+  }
+}

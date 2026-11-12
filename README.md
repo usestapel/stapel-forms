@@ -29,7 +29,7 @@ pip install stapel-forms
 | HTTP operations | 18 |
 | Config axes | 5 |
 | Usage surface | 36 |
-| Extension points | 4 |
+| Extension points | 5 |
 | Error codes | 76 |
 | Fleet dependencies | [`stapel-attributes`](https://github.com/usestapel/stapel-attributes) · [`stapel-core`](https://github.com/usestapel/stapel-core) · [`stapel-gdpr`](https://github.com/usestapel/stapel-gdpr) (optional) · [`stapel-notifications`](https://github.com/usestapel/stapel-notifications) (optional) · [`stapel-workspaces`](https://github.com/usestapel/stapel-workspaces) (optional) |
 

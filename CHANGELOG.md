@@ -6,6 +6,16 @@ Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
 ## [Unreleased]
 
+Proposed version: 0.6.4.
+
+### Added — `forms.form.exists`, the first provided comm Function
+
+`call("forms.form.exists", {"public_id"})` -> `{"exists", "published"}` so
+another module can validate a form reference when it saves one. `published`
+means "the public surface serves it as fillable" (open, with an active
+version); an unknown, rotated or soft-deleted handle does not exist. No form
+content is returned. Contract: `schemas/functions/forms.form.exists.json`.
+
 ## [0.6.3] — 2026-09-08
 
 ### Fixed — the codes travelled to the host, their translations did not
