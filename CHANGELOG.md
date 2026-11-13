@@ -4,9 +4,7 @@ All notable changes to stapel-forms are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Pre-1.0 semver: **minor = breaking**, patch = compatible.
 
-## [Unreleased]
-
-Proposed version: 0.6.4.
+## [0.6.4] — 2026-11-13
 
 ### Added — `forms.form.exists`, the first provided comm Function
 
