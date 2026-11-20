@@ -820,7 +820,14 @@
         ],
         "responses": {
           "200": {
-            "description": "No response body"
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
           }
         },
         "x-stapel-capability": "forms.responses.view"

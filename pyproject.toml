@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stapel-forms"
-version = "0.6.4"
+version = "0.6.5"
 description = "Admin-defined forms, anonymous submissions and response review for the Stapel framework"
 readme = "README.md"
 license = { text = "MIT" }
@@ -50,7 +50,7 @@ dependencies = [
     # it was, and those codes rendered their English floor on an otherwise
     # translated screen. `tests/test_error_i18n.py` is the gate; at the old
     # floor it reports twelve codes with no ru string.
-    "stapel-core>=0.60.8,<1.0",
+    "stapel-core>=0.99.3,<1.0",
     # The one extra runtime dependency (spec §9): the schema of a form IS a
     # list of stapel-attributes FeatureDefs, and submissions are validated
     # and normalized by its pipeline. An L1 library, imported directly —

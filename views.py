@@ -23,6 +23,7 @@ import functools
 
 from django.core.exceptions import ImproperlyConfigured
 from django.http import StreamingHttpResponse
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions
 from rest_framework.throttling import ScopedRateThrottle
@@ -766,7 +767,7 @@ class SubmissionExportView(AdminAPIView):
                 description="Keyset continuation, echoed back in the X-Forms-Next-Before header.",
             ),
         ],
-        responses={(200, "text/csv"): None},
+        responses={(200, "text/csv"): OpenApiTypes.STR},
     )
     @_maps_forms_errors
     @gated("responses.view")

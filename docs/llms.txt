@@ -1,8 +1,8 @@
-# stapel-forms 0.6.4
+# stapel-forms 0.6.5
 
 Admin-defined forms with anonymous responses: a workspace-keyed form whose schema is a list of stapel-attributes FeatureDefs, immutable published versions (every response records which schema it answered), two anonymous endpoints (fetch schema by non-enumerable public handle, submit answers) hardened by module-namespaced throttles, netintel-tiered captcha, size and volume caps and a recipient-side notify cooldown, capability-gated response review with streamed injection-safe CSV export, admin-initiated resend, ids-only form.* events, a GDPR provider and a finite retention purge.
 
-Contract: axes 5 · surface 36 · extension points 5 · operations 18 · error codes 76.
+Contract: axes 5 · surface 36 · extension points 5 · operations 18 · error codes 77.
 Generated from docs/capabilities.json by `stapel-llms-txt` — do not edit; drift-gated by `make contract-check`.
 
 ## Configuration axes — what a product switches on
@@ -175,7 +175,7 @@ Paths are relative to `/forms/api/v1/`.
 - POST /submissions/{submission_id}/resend — forms_api_v1_submissions_resend_create
 - GET /submissions/{submission_id} — forms_api_v1_submissions_retrieve
 
-## Error codes (76) — the StapelError envelope
+## Error codes (77) — the StapelError envelope
 Render `t(code, params)`; branch UX on the remediation. Localized text lives in docs/errors.<lang>.md, not here.
 - error.400.bad_request [400] fix_input
 - error.400.captcha_invalid [400] retry
@@ -219,6 +219,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.400.forms_too_many_open [400] contact_support
 - error.400.forms_unknown_field [400] fix_input
 - error.400.invalid_ad_id [400] fix_input
+- error.400.too_many_ids [400] fix_input {requested,limit}
 - error.400.validation_error [400] fix_input
 - error.400.verification_failed [400] verify
 - error.400.verification_invalid_factor [400] verify
@@ -248,7 +249,7 @@ Render `t(code, params)`; branch UX on the remediation. Localized text lives in 
 - error.422.unprocessable_entity [422] wait_and_retry
 - error.423.locked [423] wait_and_retry
 - error.423.verification_locked [423] wait_and_retry
-- error.429.rate_limit [429] wait_and_retry {retry_after_minutes}
+- error.429.rate_limit [429] wait_and_retry {retry_after_display,retry_after,retry_after_minutes}
 - error.429.too_many_requests [429] wait_and_retry
 - error.500.internal [500] contact_support
 - error.503.forms_workspaces_unavailable [503] wait_and_retry

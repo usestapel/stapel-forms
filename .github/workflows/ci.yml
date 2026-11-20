@@ -38,7 +38,11 @@ jobs:
       - name: Install test dependencies
         # stapel-tools: tests/test_contract.py drives the contract emitters
         # (llms_txt, readme) and fails on ModuleNotFound without it.
-        run: pip install pytest pytest-django pytest-cov "stapel-tools>=0.26.0"
+        run: pip install pytest pytest-django pytest-cov "stapel-tools>=0.84.0,<1"
+
+      - name: Contract drift (make contract-check, emitted on 3.12)
+        if: matrix.python-version == '3.12'
+        run: make contract-check PYTHON=python
 
       - name: Tests with coverage
         run: |
@@ -102,7 +106,7 @@ jobs:
       - name: Install test dependencies
         # stapel-tools: tests/test_contract.py drives the contract emitters
         # (llms_txt, readme) and fails on ModuleNotFound without it.
-        run: pip install pytest pytest-django pytest-cov "stapel-tools>=0.26.0"
+        run: pip install pytest pytest-django pytest-cov "stapel-tools>=0.84.0,<1"
 
       - name: Tests with coverage
         run: |
